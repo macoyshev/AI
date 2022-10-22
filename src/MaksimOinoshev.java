@@ -151,15 +151,6 @@ class TreasureMap {
         initCell.isWinPath = true;
     }
 
-    private boolean isFamily(Cell cell1, Cell cell2) {
-        while (cell1.parent != null) {
-            if (cell1.id == cell2.id) return true;
-            cell1 = cell1.parent;
-        }
-
-        return false;
-    }
-
     private void printMap() {
         var entities = new ArrayList<Entity>(Arrays.asList(player, goal, support));
         entities.addAll(Arrays.asList(enemies));
@@ -199,13 +190,23 @@ class TreasureMap {
         int y = cell.y;
 
         var neighbors = new ArrayList<Cell>();
-        for(int i = -1; i < 2; i++) {
-            for(int j = -1; j < 2; j++) {
+        var observeArea = player.getObserveArea();
+        int heightShiftInArea = observeArea.length / 2;
+        int WidthShiftInArea = observeArea[0].length / 2;
+
+        for(int i = -heightShiftInArea; i < heightShiftInArea + 1; i++) {
+            for(int j = -WidthShiftInArea; j < WidthShiftInArea + 1; j++) {
                 if (i == 0 && j == 0) continue;  //cell itself
 
-                if (inMap(y + i, x + j) && !inEffectArea(y + i, x + j)) {
-                    var neighbor = body[y + i][x + j];
-                    if (cell.parent != neighbor) {
+                int yMap = y + i;
+                int xMap = x + j;
+
+                int yArea = i + heightShiftInArea;
+                int xArea = j + WidthShiftInArea;
+
+                if (inMap(yMap, xMap) && !inEffectArea(yMap, xMap)){
+                    var neighbor = body[yMap][xMap];
+                    if (cell.parent != neighbor && observeArea[yArea][xArea] == '#') {
                         neighbors.add(neighbor);
                     }
                 }
@@ -331,6 +332,10 @@ class Player extends Entity {
     public Player(int[] coordinates, String name, char[][] observeArea) {
         super(coordinates, name);
         this.observeArea = observeArea;
+    }
+
+    public char[][] getObserveArea() {
+        return observeArea;
     } 
 }
 
