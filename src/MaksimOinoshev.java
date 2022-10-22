@@ -118,12 +118,50 @@ class TreasureMap {
             cheapestCells.addAll(neighborCells);
             cheapestCells.sort(Comparator.comparing(Cell::getTotalConst));
         }
-
         var goalCell = body[goal.getY()][goal.getX()];
-        if (goalCell.parent != null) 
+        if (goalCell.parent != null) {
             System.out.println("WIN!");
-        else
-            System.out.println("NO!");
+            markWinPath();
+            printMap();
+        } else
+            System.out.println("NO WIN!");
+    }
+
+    private void markWinPath() {
+        var cell = getEntityCell(goal);
+        while (cell.parent != null) {
+            cell.is_win_path = true;
+            cell = cell.parent;
+        }
+    }
+
+    private boolean isFamily(Cell cell1, Cell cell2) {
+        while (cell1.parent != null) {
+            if (cell1.id == cell2.id) return true;
+            cell1 = cell1.parent;
+        }
+
+        return false;
+    }
+
+    private void printMap() {
+        for(int i = 0; i < height; i++) {
+            for(int j = 0; j < width; j++) {
+                var cell = body[i][j];
+                if (cell.cost == enemyCellCost) {
+                    System.out.print("#");
+                    continue;
+                }
+
+                if (cell.is_win_path) {
+                    System.out.print("*");
+                    continue;
+                }
+
+                System.out.print("-");
+            }
+            System.out.print("\n");
+        }
     }
 
     private ArrayList<Cell> getNeighborCells(Cell cell) {
@@ -137,13 +175,17 @@ class TreasureMap {
 
                 if (inMap(y + i, x + j) && !inEffectArea(y + i, x + j)) {
                     var neighbor = body[y + i][x + j];
-                    if (neighbor.parent != null && neighbor.parent.id != cell.id) {
+                    if (neighbor.parent == null || neighbor.parent.id != cell.id) {
                         neighbors.add(neighbor);
                     }
                 }
             }
         }
         return neighbors;
+    }
+
+    private Cell getEntityCell(Entity entity) {
+        return body[entity.getY()][entity.getX()];
     }
 
     private void recalculateTotalCost(Cell cell, ArrayList<Cell> neighbors){
@@ -160,7 +202,6 @@ class TreasureMap {
             }
         }
     }
-
 
     private boolean inMap(int y, int x) {
         return xInMap(x) && yInMap(y);
@@ -232,6 +273,8 @@ class TreasureMap {
         private int id;
         private int x;
         private int y;
+
+        private boolean is_win_path = false;
 
         private int cost;
         private int manhatanCost = -1;
