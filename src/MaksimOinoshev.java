@@ -2,6 +2,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Scanner;
 
@@ -100,25 +101,38 @@ class TreasureMap {
     }
 
     public void aStar() {
-        var initCell = body[player.getY()][player.getX()];
+        var initCell = getEntityCell(player);
+        var deadCells = new HashSet<Cell>();
         var cheapestCells = new ArrayList<Cell>();
-        
+        var proceededCells = new HashSet<Cell>();
+
         cheapestCells.add(initCell);
         while (!cheapestCells.isEmpty()) {
             var cell = cheapestCells.remove(0);
+            proceededCells.add(cell);
 
             if (cellContains(cell, goal)) break;
 
             var neighborCells = getNeighborCells(cell);
+            if (neighborCells.isEmpty()) {
+                deadCells.add(cell);
+                continue;
+            }
 
-            if (neighborCells.isEmpty()) break;
+            // deduplication
+            for (Cell proceeded : proceededCells) {
+                neighborCells.remove(proceeded);
+            }
+            for (Cell deadCell : deadCells) {
+                neighborCells.remove(deadCell);
+            }
             
             recalculateTotalCost(cell, neighborCells);
-
             cheapestCells.addAll(neighborCells);
             cheapestCells.sort(Comparator.comparing(Cell::getTotalConst));
         }
-        var goalCell = body[goal.getY()][goal.getX()];
+
+        var goalCell = getEntityCell(goal);
         if (goalCell.parent != null) {
             System.out.println("WIN!");
             markWinPath();
@@ -129,7 +143,7 @@ class TreasureMap {
 
     private void markWinPath() {
         var cell = getEntityCell(goal);
-        while (cell.parent != null) {
+        while (cell.id != 1) {
             cell.is_win_path = true;
             cell = cell.parent;
         }
@@ -175,7 +189,7 @@ class TreasureMap {
 
                 if (inMap(y + i, x + j) && !inEffectArea(y + i, x + j)) {
                     var neighbor = body[y + i][x + j];
-                    if (neighbor.parent == null || neighbor.parent.id != cell.id) {
+                    if (cell.parent != neighbor) {
                         neighbors.add(neighbor);
                     }
                 }
@@ -237,12 +251,12 @@ class TreasureMap {
         if (area == null)
             return;
 
-        int area_height = area.length / 2;
-        int area_width = area[0].length / 2;
+        int area_height = area.length;
+        int area_width = area[0].length;
 
         // relative position of the enemy in the area
-        var enemy_pos_y_in_area = area_height;
-        var enemy_pos_x_in_area = area_width;
+        var enemy_pos_y_in_area = area_height / 2;
+        var enemy_pos_x_in_area = area_width / 2;
 
         for(int i = 0; i < area_height; i++) {
             for(int j = 0; j < area_width; j++) {
