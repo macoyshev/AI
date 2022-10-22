@@ -51,6 +51,7 @@ public class MaksimOinoshev{
         var treasure = new Goal(coordinates.get(5), "treasure");
 
         var map = new TreasureMap(treasure, jack, tartuga, new Enemy[]{kraken, davy, stone});
+        map.aStar();
     }
 
     public static int parseGameMode(String input) {
@@ -100,39 +101,43 @@ class TreasureMap {
 
     public void aStar() {
         var initCell = body[player.getY()][player.getX()];
-        var cheapestCells = new LinkedList<Cell>();
+        var cheapestCells = new ArrayList<Cell>();
         
         cheapestCells.add(initCell);
         while (!cheapestCells.isEmpty()) {
             var cell = cheapestCells.remove(0);
 
+            if (cellContains(cell, goal)) break;
+
             var neighborCells = getNeighborCells(cell);
+
             if (neighborCells.isEmpty()) break;
             
-            // PATH Calc
-            // int cathetus_x = Math.abs(goal.getX() - x);
-            // int cathetus_y = Math.abs(goal.getY() - y);
-            // manhatanCost = cathetus_x + cathetus_y;
-            // totalCost = cost + manhatanCost;
+            recalculateTotalCost(cell, neighborCells);
 
             cheapestCells.addAll(neighborCells);
             cheapestCells.sort(Comparator.comparing(Cell::getTotalConst));
         }
+
+        var goalCell = body[goal.getY()][goal.getX()];
+        if (goalCell.parent != null) 
+            System.out.println("WIN!");
+        else
+            System.out.println("NO!");
     }
 
     private ArrayList<Cell> getNeighborCells(Cell cell) {
-        int x = cell.getX();
-        int y = cell.getY();
+        int x = cell.x;
+        int y = cell.y;
 
         var neighbors = new ArrayList<Cell>();
         for(int i = -1; i < 2; i++) {
             for(int j = -1; j < 2; j++) {
-                if (i == 0 && y == 0) continue;  //cell itself
+                if (i == 0 && j == 0) continue;  //cell itself
 
-                if (inMap(y + i, x + y) && inEffectArea(y + i, x + j)) {
-                    var neighbor = body[y + i][x + i];
-                    if (neighbor.parent != cell) {
-                        neighbor.parent = neighbor;
+                if (inMap(y + i, x + j) && !inEffectArea(y + i, x + j)) {
+                    var neighbor = body[y + i][x + j];
+                    if (neighbor.parent != null && neighbor.parent.id != cell.id) {
                         neighbors.add(neighbor);
                     }
                 }
@@ -141,13 +146,28 @@ class TreasureMap {
         return neighbors;
     }
 
+    private void recalculateTotalCost(Cell cell, ArrayList<Cell> neighbors){
+        for (Cell neighbor : neighbors) {
+            int cathetus_x = Math.abs(goal.getX() - neighbor.x);
+            int cathetus_y = Math.abs(goal.getY() - neighbor.y);
+            int manhatanCost = cathetus_x + cathetus_y;
+
+            int newtotalCost = cell.cost + manhatanCost + emptyCellCost;
+            if (neighbor.totalCost == -1 || neighbor.totalCost > newtotalCost) {
+                neighbor.parent = cell;
+                neighbor.totalCost = newtotalCost;
+                neighbor.manhatanCost = manhatanCost;
+            }
+        }
+    }
+
 
     private boolean inMap(int y, int x) {
         return xInMap(x) && yInMap(y);
     }
 
     private boolean inEffectArea(int y, int x) {
-        return body[y][x].cost != -1;
+        return body[y][x].cost == -1;
     }
 
     private boolean xInMap(int x) {
@@ -156,6 +176,10 @@ class TreasureMap {
 
     private boolean yInMap(int y) {
         return y < width && y >= 0;
+    }
+
+    private boolean cellContains(Cell cell, Entity entity) {
+        return cell.x == entity.getX() && cell.y == entity.getY();
     }
     
     private void placeEnemiesOnMap(Enemy[] enemies) {
@@ -204,13 +228,14 @@ class TreasureMap {
         }
     }
     
-    class Cell implements Comparable<Cell> {
+    class Cell {
+        private int id;
         private int x;
         private int y;
 
         private int cost;
-        private int manhatanCost;
-        private int totalCost;
+        private int manhatanCost = -1;
+        private int totalCost = -1;
 
         private Cell parent = null;
         
@@ -218,15 +243,11 @@ class TreasureMap {
             this.cost = cost;
             this.x = x;
             this.y = y;
-        }
-
-        @Override
-        public int compareTo(TreasureMap.Cell anotheCell) {
-            return Integer.compare(this.getTotalConst(), anotheCell.getTotalConst());
+            this.id = (x + 1) * (y + 1);
         }
 
         public int getTotalConst() {
-            return manhatanCost + cost;
+            return totalCost;
         }
     }
 }
