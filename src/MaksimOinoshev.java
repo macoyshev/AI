@@ -143,10 +143,12 @@ class TreasureMap {
 
     private void markWinPath() {
         var cell = getEntityCell(goal);
-        while (cell.id != 1) {
-            cell.is_win_path = true;
+        var initCell = getEntityCell(player);
+        while (cell != initCell) {
+            cell.isWinPath = true;
             cell = cell.parent;
         }
+        initCell.isWinPath = true;
     }
 
     private boolean isFamily(Cell cell1, Cell cell2) {
@@ -159,15 +161,29 @@ class TreasureMap {
     }
 
     private void printMap() {
+        var entities = new ArrayList<Entity>(Arrays.asList(player, goal, support));
+        entities.addAll(Arrays.asList(enemies));
+        
         for(int i = 0; i < height; i++) {
             for(int j = 0; j < width; j++) {
                 var cell = body[i][j];
+                
+                var isEntity = false;
+                for (Entity entity : entities) {
+                    if (cell == getEntityCell(entity)) {
+                        System.out.print(entity.getName().charAt(0));
+                        isEntity = true;
+                        break;
+                    }
+                }
+                if (isEntity) continue;
+
                 if (cell.cost == enemyCellCost) {
                     System.out.print("#");
                     continue;
                 }
 
-                if (cell.is_win_path) {
+                if (cell.isWinPath) {
                     System.out.print("*");
                     continue;
                 }
@@ -288,7 +304,7 @@ class TreasureMap {
         private int x;
         private int y;
 
-        private boolean is_win_path = false;
+        private boolean isWinPath = false;
 
         private int cost;
         private int manhatanCost = -1;
