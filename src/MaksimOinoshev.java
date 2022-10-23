@@ -2,6 +2,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.Random;
 import java.util.Scanner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -11,9 +12,19 @@ import java.util.regex.Pattern;
  */
 public class MaksimOinoshev {
     public static void main(String[] args) {
+        Random rand = new Random();
+        // coor
         var scanner = new Scanner(System.in);
-        var coordinates = parseCoordinates(scanner.nextLine());
-        var gamemode = parseGameMode(scanner.nextLine());
+        // var coordinates = parseCoordinates(scanner.nextLine());
+        var coordinates = new ArrayList<int[]>();
+        for(int i = 0; i < 6; i++)
+            coordinates.add(new int[] {rand.nextInt(9), rand.nextInt(9)});
+
+        for (int[] is : coordinates) {
+            System.out.print("[" + is[0]+","+is[1]+"] ");
+        }
+        System.out.print("\n");
+        var gamemode = 1;
         scanner.close();
 
         final char[][] krakenAreaEffect = {
@@ -117,35 +128,34 @@ class TreasureMap {
     }
 
     public void aStar() {
+        printMap();
+        Cell goalCell = null;
         var initCell = getEntityCell(player);
-        var deadCells = new HashSet<Cell>();
         var cheapestCells = new ArrayList<Cell>();
         var proceededCells = new ArrayList<Cell>();
-        Cell goalCell = null;
-
         cheapestCells.add(initCell);
-        while (!cheapestCells.isEmpty()) {
-            var cell = cheapestCells.remove(0);
 
-            if (cellContains(cell, goal)) {
-                goalCell = cell;
-                break;
+        if (!inEffectArea(player.getY(), player.getX()))
+            while (!cheapestCells.isEmpty()) {
+                var cell = cheapestCells.remove(0);
+
+                if (cellContains(cell, goal)) {
+                    goalCell = cell;
+                    break;
+                }
+
+                var neighborCells = getNeighborCells(cell);
+                if (neighborCells.isEmpty()) {
+                    continue;
+                }
+
+                removeProcededCells(neighborCells, proceededCells);
+                recalculateTotalCost(cell, neighborCells);
+
+                cheapestCells.addAll(neighborCells);
+                cheapestCells.sort(Comparator.comparing(Cell::getTotalConst));
+                proceededCells.add(cell);
             }
-
-            var neighborCells = getNeighborCells(cell);
-            if (neighborCells.isEmpty()) {
-                deadCells.add(cell);
-                continue;
-            }
-
-            deduplicate(neighborCells, cheapestCells, proceededCells, deadCells);
-
-            recalculateTotalCost(cell, neighborCells);
-
-            cheapestCells.addAll(neighborCells);
-            cheapestCells.sort(Comparator.comparing(Cell::getTotalConst));
-            proceededCells.add(cell);
-        }
 
         if (goalCell != null) {
             System.out.println("WIN!");
@@ -156,43 +166,23 @@ class TreasureMap {
     }
 
     /**
-     * Removes duplicate element from the neighborCells and cheapestCells lists
+     * Removes proceeded element from the neighborCells and cheapestCells lists
      * 
      * @param neighborCells - array list of neighbors
-     * @param cheapestCells - array list of cell sorted by total cost
-     * @param procededCells - array list of proceded cells from cheapestCells
-     * @param deadCells     - set of cells without neighbors
+     * @param proceededCells - array list of proceded cells from cheapestCells
      */
-    private void deduplicate(ArrayList<Cell> neighborCells, ArrayList<Cell> cheapestCells,
-            ArrayList<Cell> procededCells, HashSet<Cell> deadCells) {
-        var cheapestCellsToRemove = new ArrayList<Cell>();
+    private void removeProcededCells(ArrayList<Cell> neighborCells, ArrayList<Cell> proceededCells) {
         var neighborCellsToRemove = new ArrayList<Cell>();
 
         for (Cell neighbor : neighborCells) {
-            // remove collision of cheapest and neighbor cells
-            for (Cell cheap : cheapestCells)
-                if (cheap.id == neighbor.id)
-                    if (cheap.totalCost < calculateCost(neighbor)[2])
-                        neighborCellsToRemove.add(neighbor);
-                    else
-                        cheapestCellsToRemove.add(cheap);
-
             // remove collision of proceded and neighbor cells
-            for (Cell proceded : procededCells)
+            for (Cell proceded : proceededCells)
                 if (proceded.id == neighbor.id && proceded.totalCost < calculateCost(neighbor)[2])
-                    neighborCellsToRemove.add(neighbor);
-
-            // remove collision of dead and neighbor cells
-            for (Cell dead : deadCells)
-                if (dead.id == neighbor.id)
                     neighborCellsToRemove.add(neighbor);
         }
 
         for (Cell cellToRemove : neighborCellsToRemove)
             neighborCells.remove(cellToRemove);
-
-        for (Cell cellToRemove : cheapestCellsToRemove)
-            cheapestCells.remove(cellToRemove);
     }
 
     /**
@@ -273,6 +263,9 @@ class TreasureMap {
                     neighbor.parent = cell;
                     neighbors.add(neighbor);
                 }
+
+                // if (inMap(yMap, xMap) && isMortalEnemyFound(yMap, xMap))
+                    // player.knownMortalEnemies.add(body[e])
             }
         }
         return neighbors;
@@ -321,6 +314,14 @@ class TreasureMap {
         int newTotalCost = newCost + manhatanCost;
 
         return new int[] { newCost, manhatanCost, newTotalCost };
+    }
+
+    private boolean isMortalEnemyFound(int y, int x) {
+        for (Enemy enemy : enemies) {
+            if (enemy.isImmortal())
+                return enemy.getX() == x && enemy.getY() == y;
+        }
+        return false;
     }
 
     /**
@@ -459,14 +460,18 @@ class TreasureMap {
 }
 
 class Player extends Entity {
+    private boolean hasSupport = false;
+    private ArrayList<Enemy> knownMortalEnemies = new ArrayList<>();
+
     public Player(int[] coordinates, String name) {
         super(coordinates, name);
     }
+    
 }
 
 class Enemy extends Entity {
     private char[][] effectArea = null;
-    private boolean is_immortal = true;
+    private boolean isImmortal = true;
 
     public Enemy(int[] coordinates, String name) {
         super(coordinates, name);
@@ -477,14 +482,18 @@ class Enemy extends Entity {
         this.effectArea = effectArea;
     }
 
-    public Enemy(int[] coordinates, String name, char[][] effectArea, boolean is_immortal) {
+    public Enemy(int[] coordinates, String name, char[][] effectArea, boolean isImmortal) {
         super(coordinates, name);
         this.effectArea = effectArea;
-        this.is_immortal = is_immortal;
+        this.isImmortal = isImmortal;
     }
 
     public char[][] getEffectArea() {
         return effectArea;
+    }
+
+    public boolean isImmortal() {
+        return isImmortal;
     }
 }
 
