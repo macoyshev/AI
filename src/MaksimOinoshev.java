@@ -49,7 +49,7 @@ public class MaksimOinoshev{
         var kraken = new Enemy(coordinates.get(2), "kraken", krakenAreaEffect, false);
         var stone = new Enemy(coordinates.get(3), "stone");
         var tartuga = new Support(coordinates.get(4), "tartuga");
-        var treasure = new Goal(coordinates.get(5), "treasure");
+        var treasure = new Goal(coordinates.get(5), "brilliant");
 
         var map = new TreasureMap(treasure, jack, tartuga, new Enemy[]{kraken, davy, stone});
         map.aStar();
@@ -97,6 +97,7 @@ class TreasureMap {
         this.enemies = enemies;
         
         placeEnemiesOnMap(enemies);
+        placeSupportOnMap(support);
         fillMapWithEmptyCells();
     }
 
@@ -131,7 +132,7 @@ class TreasureMap {
             cheapestCells.addAll(neighborCells);
             cheapestCells.sort(Comparator.comparing(Cell::getTotalConst));
         }
-
+        
         var goalCell = getEntityCell(goal);
         if (goalCell.parent != null) {
             System.out.println("WIN!");
@@ -170,12 +171,12 @@ class TreasureMap {
                 if (isEntity) continue;
 
                 if (cell.cost == enemyCellCost) {
-                    System.out.print("#");
+                    System.out.print(Colors.RED + "#" + Colors.STOP);
                     continue;
                 }
 
                 if (cell.isWinPath) {
-                    System.out.print("*");
+                    System.out.print(Colors.GREEN + "*" + Colors.STOP);
                     continue;
                 }
 
@@ -201,11 +202,10 @@ class TreasureMap {
                 int yMap = y + i;
                 int xMap = x + j;
 
-                int yArea = i + heightShiftInArea;
-                int xArea = j + WidthShiftInArea;
-
                 if (inMap(yMap, xMap) && !inEffectArea(yMap, xMap)){
                     var neighbor = body[yMap][xMap];
+                    int yArea = i + heightShiftInArea;
+                    int xArea = j + WidthShiftInArea;
                     if (cell.parent != neighbor && observeArea[yArea][xArea] == '#') {
                         neighbors.add(neighbor);
                     }
@@ -252,6 +252,12 @@ class TreasureMap {
 
     private boolean cellContains(Cell cell, Entity entity) {
         return cell.x == entity.getX() && cell.y == entity.getY();
+    }
+
+    private void placeSupportOnMap(Support support) {
+        int x = support.getX();
+        int y = support.getY();
+        body[y][x] = new Cell(enemyCellCost, y, x);
     }
     
     private void placeEnemiesOnMap(Enemy[] enemies) {
@@ -305,6 +311,7 @@ class TreasureMap {
         private int x;
         private int y;
 
+        private boolean isSupportPoint = false;
         private boolean isWinPath = false;
 
         private int cost;
@@ -405,5 +412,23 @@ class Entity {
 
     public int getY() {
         return y;
+    }
+}
+
+enum Colors {
+    STOP("\033[0m"),
+    RED("\033[0;31m"),
+    GREEN("\033[0;32m"),
+    YELLOW("\033[0;33m"); 
+
+    private String code;
+
+    Colors(String code) {
+        this.code = code;
+    }
+
+    @Override
+    public String toString() {
+        return code;
     }
 }
