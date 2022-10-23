@@ -5,8 +5,12 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Scanner;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
-
+/**
+ * @author Maksim Oinoshev
+ */
 public class MaksimOinoshev{
     public static void main(String[] args) {
         var scanner = new Scanner(System.in);
@@ -56,10 +60,26 @@ public class MaksimOinoshev{
     }
 
     public static int parseGameMode(String input) {
-        return Integer.parseInt(input);
+        var mode = -1;
+        try {
+            mode = Integer.parseInt(input);
+        } catch (Exception e) {
+            InvalidInput();
+        }
+        
+        if (mode == 1 || mode == 2)
+            return mode;
+            
+        InvalidInput();
+        return 0;
     }
 
     public static ArrayList<int[]> parseCoordinates(String input) {
+        Pattern pattern = Pattern.compile("(\\[\\d,\\d\\]{1} ){5}\\[\\d,\\d\\]{1}$");
+        Matcher matcher = pattern.matcher(input);
+        if (!matcher.find()) 
+            InvalidInput();
+
         // divide line to chunks
         var strCoordinates = input.split(" ");
         var coordinates = new ArrayList<int[]>();
@@ -71,8 +91,12 @@ public class MaksimOinoshev{
                     .toArray();
             coordinates.add(coordinate);
         }
-
         return coordinates;
+    }
+
+    public static void InvalidInput() {
+        System.out.println("Invalid input");
+        System.exit(0);
     }
 }
 
@@ -97,7 +121,6 @@ class TreasureMap {
         this.enemies = enemies;
         
         placeEnemiesOnMap(enemies);
-        // placeSupportOnMap(support);
         fillMapWithEmptyCells();
     }
 
@@ -179,7 +202,6 @@ class TreasureMap {
             body[cell.y][cell.x].isWinPath = true;
             cell = cell.parent;
         }
-        initCell.isWinPath = true;
     }
 
     private void printMap() {
@@ -187,7 +209,8 @@ class TreasureMap {
         entities.addAll(Arrays.asList(enemies));
         System.out.println(" 012345678");
         for(int i = 0; i < height; i++) {
-            System.out.print(i);;
+            System.out.print(i);
+
             for(int j = 0; j < width; j++) {
                 var cell = body[i][j];
                 
@@ -210,7 +233,6 @@ class TreasureMap {
                     System.out.print(Colors.GREEN + "*" + Colors.STOP);
                     continue;
                 }
-
                 System.out.print("-");
             }
             System.out.print("\n");
