@@ -48,8 +48,8 @@ public class MaksimOinoshev{
         var davy = new Enemy(coordinates.get(1), "davy", davyAreaEffect);
         var kraken = new Enemy(coordinates.get(2), "kraken", krakenAreaEffect, false);
         var stone = new Enemy(coordinates.get(3), "stone");
-        var tartuga = new Support(coordinates.get(4), "tartuga");
-        var treasure = new Goal(coordinates.get(5), "brilliant");
+        var treasure = new Goal(coordinates.get(4), "brilliant");
+        var tartuga = new Support(coordinates.get(5), "tartuga");
 
         var map = new TreasureMap(treasure, jack, tartuga, new Enemy[]{kraken, davy, stone});
         map.aStar();
@@ -97,56 +97,86 @@ class TreasureMap {
         this.enemies = enemies;
         
         placeEnemiesOnMap(enemies);
-        placeSupportOnMap(support);
+        // placeSupportOnMap(support);
         fillMapWithEmptyCells();
     }
 
     public void aStar() {
+        printMap();
         var initCell = getEntityCell(player);
         var deadCells = new HashSet<Cell>();
         var cheapestCells = new ArrayList<Cell>();
-        var proceededCells = new HashSet<Cell>();
+        var proceededCells = new ArrayList<Cell>();
+        Cell goalCell = null;
 
         cheapestCells.add(initCell);
         while (!cheapestCells.isEmpty()) {
             var cell = cheapestCells.remove(0);
-            proceededCells.add(cell);
 
-            if (cellContains(cell, goal)) break;
+            if (cellContains(cell, goal)) {
+                goalCell = cell;
+                break;
+            };
 
             var neighborCells = getNeighborCells(cell);
             if (neighborCells.isEmpty()) {
                 deadCells.add(cell);
                 continue;
             }
-
-            // deduplication
-            for (Cell proceeded : proceededCells) {
-                neighborCells.remove(proceeded);
-            }
-            for (Cell deadCell : deadCells) {
-                neighborCells.remove(deadCell);
-            }
+            
+            deduplicate(neighborCells, cheapestCells, proceededCells, deadCells);
             
             recalculateTotalCost(cell, neighborCells);
+
             cheapestCells.addAll(neighborCells);
             cheapestCells.sort(Comparator.comparing(Cell::getTotalConst));
+            proceededCells.add(cell);
         }
         
-        var goalCell = getEntityCell(goal);
-        if (goalCell.parent != null) {
+        if (goalCell != null) {
             System.out.println("WIN!");
-            markWinPath();
+            markWinPath(goalCell);
             printMap();
         } else
             System.out.println("NO WIN!");
     }
 
-    private void markWinPath() {
-        var cell = getEntityCell(goal);
+    private void deduplicate(ArrayList<Cell> neighborCells, ArrayList<Cell> cheapestCells, ArrayList<Cell> procededCells, HashSet<Cell> deadCells) {
+        var cheapestCellsToRemove = new ArrayList<Cell>();
+        var neighborCellsToRemove = new ArrayList<Cell>();
+
+        for (Cell neighbor : neighborCells) {
+            // remove collision of cheapest and neighbor cells
+            for (Cell cheap : cheapestCells)
+                if (cheap.id == neighbor.id)
+                    if (cheap.totalCost < calculateCost(neighbor)[2])
+                        neighborCellsToRemove.add(neighbor);
+                    else
+                        cheapestCellsToRemove.add(cheap);
+
+            // remove collision of proceded and neighbor cells
+            for (Cell proceded : procededCells)
+                if (proceded.id == neighbor.id && proceded.totalCost < calculateCost(neighbor)[2])
+                    neighborCellsToRemove.add(neighbor);
+
+            // remove collision of dead and neighbor cells
+            for (Cell dead : deadCells) 
+                if (dead.id == neighbor.id) 
+                    neighborCellsToRemove.add(neighbor);
+        }
+
+        for (Cell cellToRemove : neighborCellsToRemove)
+            neighborCells.remove(cellToRemove);
+
+        for (Cell cellToRemove : cheapestCellsToRemove) 
+            cheapestCells.remove(cellToRemove);
+    }
+
+    private void markWinPath(Cell goalCell) {
+        var cell = goalCell;
         var initCell = getEntityCell(player);
-        while (cell != initCell) {
-            cell.isWinPath = true;
+        while (cell.id != initCell.id) {
+            body[cell.y][cell.x].isWinPath = true;
             cell = cell.parent;
         }
         initCell.isWinPath = true;
@@ -155,8 +185,9 @@ class TreasureMap {
     private void printMap() {
         var entities = new ArrayList<Entity>(Arrays.asList(player, goal, support));
         entities.addAll(Arrays.asList(enemies));
-        
+        System.out.println(" 012345678");
         for(int i = 0; i < height; i++) {
+            System.out.print(i);;
             for(int j = 0; j < width; j++) {
                 var cell = body[i][j];
                 
@@ -206,8 +237,11 @@ class TreasureMap {
                     var neighbor = body[yMap][xMap];
                     int yArea = i + heightShiftInArea;
                     int xArea = j + WidthShiftInArea;
+                    
                     if (cell.parent != neighbor && observeArea[yArea][xArea] == '#') {
-                        neighbors.add(neighbor);
+                        var neighborCopy = neighbor.copy();
+                        neighborCopy.parent = cell;
+                        neighbors.add(neighborCopy);
                     }
                 }
             }
@@ -221,17 +255,28 @@ class TreasureMap {
 
     private void recalculateTotalCost(Cell cell, ArrayList<Cell> neighbors){
         for (Cell neighbor : neighbors) {
-            int cathetus_x = Math.abs(goal.getX() - neighbor.x);
-            int cathetus_y = Math.abs(goal.getY() - neighbor.y);
-            int manhatanCost = cathetus_x + cathetus_y;
+            int[] costs = calculateCost(neighbor);
+            int newCost = costs[0];
+            int manhatanCost = costs[1];
+            int newtotalCost = costs[2];
 
-            int newtotalCost = cell.cost + manhatanCost + emptyCellCost;
-            if (neighbor.totalCost == -1 || neighbor.totalCost > newtotalCost) {
-                neighbor.parent = cell;
-                neighbor.totalCost = newtotalCost;
-                neighbor.manhatanCost = manhatanCost;
-            }
+            neighbor.cost = newCost;
+            neighbor.manhatanCost = manhatanCost;
+            neighbor.totalCost = newtotalCost;
         }
+    }
+
+    private int[] calculateCost(Cell cell) {
+        int cathetus_x = Math.abs(goal.getX() - cell.x);
+        int cathetus_y = Math.abs(goal.getY() - cell.y);
+        int manhatanCost = Math.max(cathetus_x, cathetus_y);
+
+        int newCost = cell.cost;
+        if (cell.parent != null) newCost += cell.parent.cost;
+
+        int newTotalCost = newCost + manhatanCost;
+        
+        return new int[] {newCost, manhatanCost, newTotalCost};
     }
 
     private boolean inMap(int y, int x) {
@@ -306,7 +351,7 @@ class TreasureMap {
         }
     }
     
-    class Cell {
+    class Cell{
         private int id;
         private int x;
         private int y;
@@ -324,12 +369,35 @@ class TreasureMap {
             this.cost = cost;
             this.x = x;
             this.y = y;
-            this.id = (x + 1) * (y + 1);
+            this.id = (x + 1) + (y) * 9 ;
+        }
+        
+        public Cell(int id, int x, int y, boolean isSupportPoint, boolean isWinPath, int cost, int manhatanCost, int totalCost, Cell parent) {
+            this.id = id;
+            this.x = x;
+            this.y = y;
+            this.isSupportPoint = isSupportPoint;
+            this.isWinPath = isWinPath;
+            this.cost = cost;
+            this.manhatanCost = manhatanCost;
+            this.totalCost = totalCost;
+            this.parent = parent;
         }
 
         public int getTotalConst() {
             return totalCost;
         }
+
+        private Cell copy() {
+            return new Cell(id, x, y, isSupportPoint, isWinPath, cost, manhatanCost, totalCost, parent);
+        }
+
+        @Override
+        public String toString() {
+            return "id:" + id + "," + "y:" + y + "," + "x:" + x ;
+        }
+
+        
     }
 }
 
