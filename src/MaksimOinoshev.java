@@ -129,15 +129,16 @@ class TreasureMap {
 
     public void aStar() {
         printMap();
+
         Cell goalCell = null;
         var initCell = getEntityCell(player);
-        var cheapestCells = new ArrayList<Cell>();
+        var cheapestCellFirst = new ArrayList<Cell>();
         var proceededCells = new ArrayList<Cell>();
-        cheapestCells.add(initCell);
+        cheapestCellFirst.add(initCell);
 
         if (!inEffectArea(player.getY(), player.getX()))
-            while (!cheapestCells.isEmpty()) {
-                var cell = cheapestCells.remove(0);
+            while (!cheapestCellFirst.isEmpty()) {
+                var cell = cheapestCellFirst.remove(0);
 
                 if (cellContains(cell, goal)) {
                     goalCell = cell;
@@ -148,19 +149,23 @@ class TreasureMap {
                 if (neighborCells.isEmpty()) {
                     continue;
                 }
-
+                
+                // used for optimization
                 removeProcededCells(neighborCells, proceededCells);
                 recalculateTotalCost(cell, neighborCells);
 
-                cheapestCells.addAll(neighborCells);
-                cheapestCells.sort(Comparator.comparing(Cell::getTotalConst));
                 proceededCells.add(cell);
+                cheapestCellFirst.addAll(neighborCells);
+                cheapestCellFirst.sort(Comparator.comparing(Cell::getTotalConst));
             }
 
         if (goalCell != null) {
-            System.out.println("WIN!");
+            var pathCost = goalCell.cost - 1; // since player spawn cell costs 1
             markWinPath(goalCell);
+
+            System.out.println("WIN!");
             printMap();
+            System.out.println("Cost: " + pathCost);
         } else
             System.out.println("NO WIN!");
     }
@@ -237,6 +242,7 @@ class TreasureMap {
         }
     }
 
+
     /**
      * Returns neighbors of the cell. A neighbor is cell which can be accepted
      * from the given cell by one move
@@ -265,7 +271,7 @@ class TreasureMap {
                 }
 
                 // if (inMap(yMap, xMap) && isMortalEnemyFound(yMap, xMap))
-                    // player.knownMortalEnemies.add(body[e])
+                //     player.knownMortalEnemies.add(en);
             }
         }
         return neighbors;
@@ -278,6 +284,13 @@ class TreasureMap {
         return body[entity.getY()][entity.getX()];
     }
 
+    private Enemy getEnemyWith(int y, int x) {
+        for (Enemy enemy : enemies) {
+            if (enemy.getX() == x && enemy.getY() == y)
+                return enemy;
+        }
+        return null;
+    }
     /**
      * Assign new costs for the neighbor if go from the cell to the neighbor
      * 
@@ -288,11 +301,11 @@ class TreasureMap {
         for (Cell neighbor : neighbors) {
             int[] costs = calculateCost(neighbor);
             int newCost = costs[0];
-            int manhatanCost = costs[1];
+            int estimatedCost = costs[1];
             int newtotalCost = costs[2];
 
             neighbor.cost = newCost;
-            neighbor.manhatanCost = manhatanCost;
+            neighbor.estimatedCost = estimatedCost;
             neighbor.totalCost = newtotalCost;
         }
     }
@@ -305,15 +318,15 @@ class TreasureMap {
     private int[] calculateCost(Cell cell) {
         int cathetus_x = Math.abs(goal.getX() - cell.x);
         int cathetus_y = Math.abs(goal.getY() - cell.y);
-        int manhatanCost = Math.max(cathetus_x, cathetus_y);
+        int estimatedCost = Math.max(cathetus_x, cathetus_y);
 
         int newCost = cell.cost;
         if (cell.parent != null)
             newCost += cell.parent.cost;
 
-        int newTotalCost = newCost + manhatanCost;
+        int newTotalCost = newCost + estimatedCost;
 
-        return new int[] { newCost, manhatanCost, newTotalCost };
+        return new int[] { newCost, estimatedCost, newTotalCost };
     }
 
     private boolean isMortalEnemyFound(int y, int x) {
@@ -328,7 +341,7 @@ class TreasureMap {
      * Check if (x, y) in the map
      */
     private boolean inMap(int y, int x) {
-        return xInMap(x) && yInMap(y);
+        return x < width && x >= 0 && y < width && y >= 0;
     }
 
     /**
@@ -336,14 +349,6 @@ class TreasureMap {
      */
     private boolean inEffectArea(int y, int x) {
         return body[y][x].cost == -1;
-    }
-
-    private boolean xInMap(int x) {
-        return x < width && x >= 0;
-    }
-
-    private boolean yInMap(int y) {
-        return y < width && y >= 0;
     }
 
     /**
@@ -417,7 +422,7 @@ class TreasureMap {
         private boolean isWinPath = false;
 
         private int cost;
-        private int manhatanCost = -1;
+        private int estimatedCost = -1;
         private int totalCost = -1;
 
         private Cell parent = null;
@@ -430,7 +435,7 @@ class TreasureMap {
         }
 
         public Cell(int id, int x, int y, boolean isSupportPoint,
-                boolean isWinPath, int cost, int manhatanCost,
+                boolean isWinPath, int cost, int estimatedCost,
                 int totalCost, Cell parent) {
             this.id = id;
             this.x = x;
@@ -438,7 +443,7 @@ class TreasureMap {
             this.isSupportPoint = isSupportPoint;
             this.isWinPath = isWinPath;
             this.cost = cost;
-            this.manhatanCost = manhatanCost;
+            this.estimatedCost = estimatedCost;
             this.totalCost = totalCost;
             this.parent = parent;
         }
@@ -448,7 +453,7 @@ class TreasureMap {
         }
 
         private Cell copy() {
-            return new Cell(id, x, y, isSupportPoint, isWinPath, cost, manhatanCost, totalCost, parent);
+            return new Cell(id, x, y, isSupportPoint, isWinPath, cost, estimatedCost, totalCost, parent);
         }
 
         @Override
