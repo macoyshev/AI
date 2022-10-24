@@ -7,6 +7,9 @@ import java.util.Scanner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.security.auth.kerberos.KerberosCredMessage;
+import javax.swing.text.StyledEditorKit.BoldAction;
+
 /**
  * @author Maksim Oinoshev
  */
@@ -15,17 +18,17 @@ public class MaksimOinoshev {
         Random rand = new Random();
         // coor
         var scanner = new Scanner(System.in);
-        // var coordinates = parseCoordinates(scanner.nextLine());
-        var coordinates = new ArrayList<int[]>();
-        for(int i = 0; i < 6; i++)
-            coordinates.add(new int[] {rand.nextInt(9), rand.nextInt(9)});
+        var coordinates = parseCoordinates(scanner.nextLine());
+        // var coordinates = new ArrayList<int[]>();
+        // for(int i = 0; i < 6; i++)
+        //     coordinates.add(new int[] {rand.nextInt(9), rand.nextInt(9)});
 
-        for (int[] is : coordinates) {
-            System.out.print("[" + is[0]+","+is[1]+"] ");
-        }
-        System.out.print("\n");
+        // for (int[] is : coordinates) {
+        //     System.out.print("[" + is[0]+","+is[1]+"] ");
+        // }
+        // System.out.print("\n");
         var gamemode = 1;
-        scanner.close();
+        // scanner.close();
 
         final char[][] krakenAreaEffect = {
                 { '-', '#', '-' },
@@ -47,7 +50,9 @@ public class MaksimOinoshev {
         var tartuga = new Support(coordinates.get(5), "tartuga");
 
         var map = new TreasureMap(gamemode, treasure, jack, tartuga, new Enemy[] { kraken, davy, stone });
+        map.printMap();
         map.aStar();
+        map.printMap();
     }
 
     /**
@@ -108,6 +113,8 @@ class TreasureMap {
     private final int width = 9;
     private final int height = 9;
     private final int gamemode;
+    private boolean enRec = false;
+    private int winCost = -1;
 
     private final Goal goal;
     private final Player player;
@@ -128,46 +135,60 @@ class TreasureMap {
     }
 
     public void aStar() {
-        printMap();
 
-        Cell goalCell = null;
-        var initCell = getEntityCell(player);
-        var cheapestCellFirst = new ArrayList<Cell>();
-        var proceededCells = new ArrayList<Cell>();
-        cheapestCellFirst.add(initCell);
+        Cell playerCell = getEntityCell(player);
+        Cell supportCell = getEntityCell(support);
+        Cell goalCell = getEntityCell(goal);
+        Cell cell = null;
 
         if (!inEffectArea(player.getY(), player.getX()))
-            while (!cheapestCellFirst.isEmpty()) {
-                var cell = cheapestCellFirst.remove(0);
+            cell = getShortest(playerCell, goalCell, goal);
 
-                if (cellContains(cell, goal)) {
-                    goalCell = cell;
-                    break;
+        if (cell != null) {
+            markWinPath(cell, player);
+            winCost = cell.cost - 1;
+        } else {
+            cell = getShortest(playerCell, supportCell, support);
+            if (cell != null) {
+                markWinPath(cell, player);
+
+                player.hasSupport = true;
+                cell = getShortest(supportCell, goalCell, goal);
+                if (cell != null) {
+                    markWinPath(cell, support);
+                    winCost = cell.cost - 1;
                 }
+            }
+        }
+    }
 
-                var neighborCells = getNeighborCells(cell);
-                if (neighborCells.isEmpty()) {
-                    continue;
-                }
-                
-                // used for optimization
-                removeProcededCells(neighborCells, proceededCells);
-                recalculateTotalCost(cell, neighborCells);
+    private Cell getShortest(Cell from, Cell to, Entity goal) {
+        var cheapestCellFirst = new ArrayList<Cell>();
+        var proceededCells = new ArrayList<Cell>();
 
-                proceededCells.add(cell);
-                cheapestCellFirst.addAll(neighborCells);
-                cheapestCellFirst.sort(Comparator.comparing(Cell::getTotalConst));
+        cheapestCellFirst.add(from);
+
+        while (!cheapestCellFirst.isEmpty()) {
+            var cell = cheapestCellFirst.remove(0);
+
+            if (cellContains(cell, goal)) {
+                return cell;
             }
 
-        if (goalCell != null) {
-            var pathCost = goalCell.cost - 1; // since player spawn cell costs 1
-            markWinPath(goalCell);
+            var neighborCells = getNeighborCells(cell);
+            if (neighborCells.isEmpty()) {
+                continue;
+            }
+            
+            deduplicate(neighborCells, cheapestCellFirst, proceededCells);
+            recalculateTotalCost(cell, neighborCells);
 
-            System.out.println("WIN!");
-            printMap();
-            System.out.println("Cost: " + pathCost);
-        } else
-            System.out.println("NO WIN!");
+            proceededCells.add(cell);
+            cheapestCellFirst.addAll(neighborCells);
+            cheapestCellFirst.sort(Comparator.comparing(Cell::getTotalConst));
+        }
+
+        return null;
     }
 
     /**
@@ -176,36 +197,50 @@ class TreasureMap {
      * @param neighborCells - array list of neighbors
      * @param proceededCells - array list of proceded cells from cheapestCells
      */
-    private void removeProcededCells(ArrayList<Cell> neighborCells, ArrayList<Cell> proceededCells) {
+    private void deduplicate(ArrayList<Cell> neighborCells, ArrayList<Cell> cheapestCells, ArrayList<Cell> procededCells) {
+        var cheapestCellsToRemove = new ArrayList<Cell>();
         var neighborCellsToRemove = new ArrayList<Cell>();
 
         for (Cell neighbor : neighborCells) {
+            // remove collision of cheapest and neighbor cells
+            for (Cell cheap : cheapestCells)
+                if (cheap.id == neighbor.id)
+                    if (cheap.totalCost < calculateCost(neighbor)[2])
+                        neighborCellsToRemove.add(neighbor);
+                    else
+                        cheapestCellsToRemove.add(cheap);
+
             // remove collision of proceded and neighbor cells
-            for (Cell proceded : proceededCells)
+            for (Cell proceded : procededCells)
                 if (proceded.id == neighbor.id && proceded.totalCost < calculateCost(neighbor)[2])
                     neighborCellsToRemove.add(neighbor);
         }
 
         for (Cell cellToRemove : neighborCellsToRemove)
             neighborCells.remove(cellToRemove);
+
+        for (Cell cellToRemove : cheapestCellsToRemove) 
+            cheapestCells.remove(cellToRemove);
     }
 
     /**
      * Sets isWiningPath to true for the shortest path
      */
-    private void markWinPath(Cell goalCell) {
+    private void markWinPath(Cell goalCell, Entity init) {
         var cell = goalCell;
-        var initCell = getEntityCell(player);
+        var initCell = getEntityCell(init);
         while (cell.id != initCell.id) {
             body[cell.y][cell.x].isWinPath = true;
             cell = cell.parent;
         }
     }
 
+  
+
     /**
      * Display map to stdout
      */
-    private void printMap() {
+    public void printMap() {
         var entities = new ArrayList<Entity>(Arrays.asList(player, goal, support));
         entities.addAll(Arrays.asList(enemies));
 
@@ -258,23 +293,36 @@ class TreasureMap {
 
         for (int i = -1; i < 2; i++) {
             for (int j = -1; j < 2; j++) {
-                if (i == 0 && j == 0)
-                    continue; // cell itself
+                if (i == 0 && j == 0) continue;
 
                 int yMap = y + i;
                 int xMap = x + j;
 
-                if (inMap(yMap, xMap) && !inEffectArea(yMap, xMap)) {
+                if (!inMap(yMap, xMap))
+                    continue;
+                
+                if (getMortalEnemyIn(yMap, xMap) != null && player.hasSupport && !enRec) {
+                    enRec = true;
+                    removeEnemyCells(getMortalEnemyIn(yMap, xMap));
+                    return getNeighborCells(cell);
+                }
+
+                if (!inEffectArea(yMap, xMap)) {
                     var neighbor = body[yMap][xMap].copy();
                     neighbor.parent = cell;
                     neighbors.add(neighbor);
                 }
-
-                // if (inMap(yMap, xMap) && isMortalEnemyFound(yMap, xMap))
-                //     player.knownMortalEnemies.add(en);
             }
         }
         return neighbors;
+    }
+
+    private Enemy getMortalEnemyIn(int y, int x) {
+        for (Enemy enemy : enemies) {
+            if (!enemy.isImmortal() && enemy.getX() == x && enemy.getY() == y)
+                return enemy;
+        }
+        return null;
     }
 
     /**
@@ -284,13 +332,28 @@ class TreasureMap {
         return body[entity.getY()][entity.getX()];
     }
 
-    private Enemy getEnemyWith(int y, int x) {
+    private void removeEnemyCells(Enemy enemy) {
+        for (int i = 0; i < height; i++) {
+            for (int j = 0; j < width; j++) {
+                if (body[i][j].belongsTo != null && body[i][j].belongsTo.equals(enemy.getName())) {
+                    body[i][j].cost = emptyCellCost;
+                }
+            }
+        }
+    }
+
+    private Enemy getEnemyIn(int y, int x) {
         for (Enemy enemy : enemies) {
             if (enemy.getX() == x && enemy.getY() == y)
                 return enemy;
         }
         return null;
     }
+
+    private boolean inSupport(int y, int x) {
+        return support.getY() == y && support.getX() == x;
+    }
+
     /**
      * Assign new costs for the neighbor if go from the cell to the neighbor
      * 
@@ -351,6 +414,11 @@ class TreasureMap {
         return body[y][x].cost == -1;
     }
 
+    private boolean inEffectAreaOf(Enemy enemy, int y, int x) {
+        
+        return body[y][x].cost == -1;
+    }
+
     /**
      * Check if the given cell contains the given entity
      */
@@ -365,7 +433,7 @@ class TreasureMap {
         for (Enemy enemy : enemies) {
             int x = enemy.getX();
             int y = enemy.getY();
-            body[y][x] = new Cell(enemyCellCost, y, x);
+            body[y][x] = new Cell(enemyCellCost, y, x, enemy.getName());
             placeEffectAreaOnMap(enemy);
         }
     }
@@ -395,7 +463,7 @@ class TreasureMap {
                     int effect_pos_y = enemy.getY() + dis_y;
 
                     if (inMap(effect_pos_y, effect_pos_x))
-                        body[effect_pos_y][effect_pos_x] = new Cell(enemyCellCost, i, j);
+                        body[effect_pos_y][effect_pos_x] = new Cell(enemyCellCost, i, j, enemy.getName());
                 }
             }
         }
@@ -420,6 +488,7 @@ class TreasureMap {
 
         private boolean isSupportPoint = false;
         private boolean isWinPath = false;
+        private String belongsTo = null;
 
         private int cost;
         private int estimatedCost = -1;
@@ -431,6 +500,14 @@ class TreasureMap {
             this.cost = cost;
             this.x = x;
             this.y = y;
+            this.id = (x + 1) + (y) * 9;
+        }
+
+        public Cell(int cost, int y, int x, String belongsTo) {
+            this.cost = cost;
+            this.x = x;
+            this.y = y;
+            this.belongsTo = belongsTo;
             this.id = (x + 1) + (y) * 9;
         }
 
@@ -465,8 +542,8 @@ class TreasureMap {
 }
 
 class Player extends Entity {
-    private boolean hasSupport = false;
-    private ArrayList<Enemy> knownMortalEnemies = new ArrayList<>();
+    public boolean hasSupport = false;
+    public ArrayList<Enemy> knownEnemies = new ArrayList<>();
 
     public Player(int[] coordinates, String name) {
         super(coordinates, name);
@@ -540,23 +617,5 @@ class Entity {
 
     public int getY() {
         return y;
-    }
-}
-
-enum Colors {
-    STOP("\033[0m"),
-    RED("\033[0;31m"),
-    GREEN("\033[0;32m"),
-    YELLOW("\033[0;33m");
-
-    private String code;
-
-    Colors(String code) {
-        this.code = code;
-    }
-
-    @Override
-    public String toString() {
-        return code;
     }
 }
