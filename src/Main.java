@@ -99,11 +99,8 @@ public class Main {
         printMap(map);
         System.out.println();
 
-        writeAStar(aStarAlgorithm(map2), "outputAStar.txt");
-        
-        ArrayList<Cell> newPath = backtrackingAlgorithm(map1);
-        int length = pathLength(newPath);
-        printBacktracking(newPath, length);
+        writeShortestPath(aStarAlgorithm(map2), "outputAStar.txt");
+        writeShortestPath(backtrackingAlgorithm(map1), "outputBacktracking.txt");
     }
 
     public static void getInput(){
@@ -449,7 +446,7 @@ public class Main {
         return path;
     }
 
-    public static void writeAStar(ArrayList<Cell> path, String fileName){
+    public static void writeShortestPath(ArrayList<Cell> path, String fileName){
         var result = new StringBuilder();
 
         if (path == null){
@@ -491,76 +488,12 @@ public class Main {
         catch (IOException e){
             e.printStackTrace();
         }
-
     }
 
     public static Cell cellWith(int y, int x, ArrayList<Cell>from) {
         for (Cell cell : from)
             if (cell.x == x && cell.y == y) return cell;
         return null;
-    }
-
-    public static void printBacktracking(ArrayList<Cell> path, int length){
-        long startTime = System.currentTimeMillis();
-
-        if (path == null) try {
-            FileWriter writer = new FileWriter("outputBacktracking.txt");
-            writer.write("Lose\n");
-            writer.close();
-            return;
-        }
-        catch (IOException e){
-            e.printStackTrace();
-        }
-        try {
-            FileWriter writer = new FileWriter("outputBacktracking.txt");
-            writer.write("Win");
-            writer.write("\n");
-            String str = Integer.toString(length);
-            str += "\n";
-            writer.write(str);
-            StringBuilder builder = new StringBuilder();
-            builder.append("[").append(jackCell.y).append(",").append(jackCell.x).append("] ");
-            for (int i = 0;i < length;i++){
-                builder.append("[").append(path.get(i).y).append(",").append(path.get(i).x).append("]");
-                if (i < length - 1) builder.append(" ");
-            }
-            writer.write(String.valueOf(builder));
-            writer.write("\n");
-            String [][] map = new String[9][9];
-            for (int i = 0;i < 9;i++){
-                for (int j = 0;j < 9;j++){
-                    map[i][j] = "_";
-                }
-            }
-            map[jackCoords.y][jackCoords.x] = "*";
-            if (path!=null)
-                for (int i = 0;i < path.size();i++){
-                    map[path.get(i).y][path.get(i).x] = "*";
-                }
-            for (int i = 0;i < 19;i++) writer.write("-");
-            writer.write("\n");
-            writer.write("  ");
-            for (int i = 0;i < 9;i++) writer.write(i+" ");
-            writer.write("\n");
-            for (int i = 0;i < 9;i++){
-                writer.write(i+" ");
-                for (int j = 0;j < 9;j++){
-                    writer.write(map[i][j]+" ");
-                }
-                writer.write("\n");
-            }
-            for (int i = 0;i < 19;i++) writer.write("-");
-            writer.write("\n");
-            long endTime = System.currentTimeMillis();
-            long duration = (endTime - startTime);
-            writer.write("Exection time in ms: ");
-            writer.write(String.valueOf(duration));
-            writer.close();
-        }
-        catch (IOException e){
-            e.printStackTrace();
-        }
     }
 
     public static void printPath(ArrayList<Cell> path){
