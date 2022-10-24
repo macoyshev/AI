@@ -6,15 +6,7 @@ import java.util.regex.Pattern;
 
 import static java.lang.Math.*;
 
-class Coordinates {
-    int x = 0;
-    int y = 0;
-
-    Coordinates (int y, int x){
-        this.x = x;
-        this.y = y;
-    }
-}
+record Coordinates(int y, int x) {}
 
 class Cell {
     double estimatedDistance = 0;
@@ -39,8 +31,8 @@ class Cell {
     }
    
     Cell(Coordinates coordinates){
-        this.x = coordinates.x;
-        this.y = coordinates.y;
+        this.x = coordinates.x();
+        this.y = coordinates.y();
     }
 
     public double getTotalCost(){
@@ -55,9 +47,6 @@ class Cell {
         return cell.x == this.x && cell.y == this.y;
     }
 
-    public boolean withEnemy() {
-        return withKraken && withStone && withDavy;
-    }
 }
 
 
@@ -220,11 +209,11 @@ public class Main {
             for (int j = 0;j < sizeX;j++){
                 if (map[i][j].danger) System.out.print("D ");
                 else
-                    if (i == jackCoords.y && j == jackCoords.x) System.out.print("J ");
+                    if (i == jackCoords.y() && j == jackCoords.x()) System.out.print("J ");
                     else
-                        if (i == chestCoords.y && j == chestCoords.x) System.out.print("C ");
+                        if (i == chestCoords.y() && j == chestCoords.x()) System.out.print("C ");
                         else
-                            if (i == tortugaCoords.y && j == tortugaCoords.x) System.out.print("T ");
+                            if (i == tortugaCoords.y() && j == tortugaCoords.x()) System.out.print("T ");
                             else
                                 System.out.print("- ");
             }
@@ -233,8 +222,8 @@ public class Main {
     }
 
     public static boolean checkBorders(Coordinates point){
-        boolean check1 = point.x >= 0 && point.x < 9;
-        boolean check2 = point.y >= 0 && point.y < 9;
+        boolean check1 = point.x() >= 0 && point.x() < 9;
+        boolean check2 = point.y() >= 0 && point.y() < 9;
         return check1 && check2;
     }
 
@@ -430,14 +419,14 @@ public class Main {
     }
 
     public static ArrayList<Cell> findPath(Coordinates [][]rec) {
-        int x = jackCoords.x;
-        int y = jackCoords.y;
+        int x = jackCoords.x();
+        int y = jackCoords.y();
         ArrayList<Cell> path = new ArrayList<>();
-        while (rec[y][x].x != 20) {
-            if (rec[y][x].x != -1){
+        while (rec[y][x].x() != 20) {
+            if (rec[y][x].x() != -1){
                 int xx = x;
-                x = rec[y][x].x;
-                y = rec[y][xx].y;
+                x = rec[y][x].x();
+                y = rec[y][xx].y();
 
                 path.add(new Cell(y,x));
             }
@@ -503,7 +492,7 @@ public class Main {
                 map[i][j] = "_";
             }
         }
-        map[jackCoords.y][jackCoords.x] = "*";
+        map[jackCoords.y()][jackCoords.x()] = "*";
         if (path!=null)
             for (int i = 0;i < path.size();i++){
                 map[path.get(i).y][path.get(i).x] = "*";
