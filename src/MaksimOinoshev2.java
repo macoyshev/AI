@@ -6,7 +6,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Random;
 import java.util.Scanner;
-import java.util.WeakHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -17,7 +16,7 @@ public class MaksimOinoshev2 {
     public static void main(String[] args) {
         Random rand = new Random();
         ArrayList<int[]> coordinates;
-        int c = 0;
+        int c = 1;
         if (c == 0) {
             var scanner = new Scanner(System.in);
             coordinates = parseCoordinates(scanner.nextLine());
@@ -380,7 +379,6 @@ class TreasureMap {
     }
 
     public void aStar() {
-
         Cell playerCell = getEntityCell(player);
         Cell supportCell = getEntityCell(support);
         Cell goalCell = getEntityCell(goal);
@@ -408,6 +406,7 @@ class TreasureMap {
         }
     }
 
+
     private Cell getShortestBack(Cell from, Cell to, Entity goal) {
         var cellsQueue = new ArrayList<Cell>();
         var proceededCells = new ArrayList<Cell>();
@@ -417,16 +416,12 @@ class TreasureMap {
 
         while (!cellsQueue.isEmpty()) {
             var cell = cellsQueue.remove(0);
-
             if (cellContains(cell, goal)) {
                 cellsSeekedGoal.add(cell);
             }
-
             var neighborCells = getNeighborCells(cell);
-            
-            deduplicate(neighborCells, cellsQueue, proceededCells);
+            deduplicate2(neighborCells, proceededCells);    
             recalculateTotalCost(cell, neighborCells);
-
             proceededCells.add(cell);
             cellsQueue.addAll(neighborCells);
         }
@@ -434,8 +429,10 @@ class TreasureMap {
         int min = -1;
         for (Cell cell : cellsSeekedGoal) {
             var val = pathLen(cell, from);
-            if (min == - 1 || val < min)
+            if (min == - 1 || val < min) {
                 w = cell;
+                min = val;
+            }
         }
         return w;
     } 
@@ -511,6 +508,21 @@ class TreasureMap {
         for (Cell cellToRemove : cheapestCellsToRemove) 
             cheapestCells.remove(cellToRemove);
     }
+
+    private void deduplicate2(ArrayList<Cell> neighborCells, ArrayList<Cell> procededCells) {
+        var neighborCellsToRemove = new ArrayList<Cell>();
+
+        for (Cell neighbor : neighborCells) {
+            // remove collision of proceded and neighbor cells
+            for (Cell proceded : procededCells)
+                if (proceded.id == neighbor.id && proceded.totalCost < calculateCost(neighbor)[2])
+                    neighborCellsToRemove.add(neighbor);
+        }
+
+        for (Cell cellToRemove : neighborCellsToRemove)
+            neighborCells.remove(cellToRemove);
+    }
+
 
     /**
      * Sets isWiningPath to true for the shortest path
