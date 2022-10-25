@@ -16,7 +16,7 @@ public class MaksimOinoshev2 {
     public static void main(String[] args) {
         Random rand = new Random();
         ArrayList<int[]> coordinates;
-        int c = 1;
+        int c = 0;
         if (c == 0) {
             var scanner = new Scanner(System.in);
             coordinates = parseCoordinates(scanner.nextLine());
@@ -55,10 +55,8 @@ public class MaksimOinoshev2 {
         var tartuga = new Support(coordinates.get(5), "tartuga");
 
         var map = new TreasureMap(gamemode, treasure, jack, tartuga, new Enemy[] { kraken, davy, stone });
-        var map2 = new TreasureMap(gamemode, treasure, jack, tartuga, new Enemy[] { kraken, davy, stone });
-        
+    
         System.out.println("ASTAR");
-
         long start = System.currentTimeMillis();
         map.aStar();
         long end = System.currentTimeMillis();
@@ -71,24 +69,33 @@ public class MaksimOinoshev2 {
             System.out.println("LOSE");
 
         map.printMap();
+        writeMapRes(map,"outputAstar.txt");
         
         System.out.println("BACKTRACKING");
 
+        jack = new Player(coordinates.get(0), "jack");
+        davy = new Enemy(coordinates.get(1), "davy", davyAreaEffect);
+        kraken = new Enemy(coordinates.get(2), "kraken", krakenAreaEffect, false);
+        stone = new Enemy(coordinates.get(3), "stone");
+        treasure = new Goal(coordinates.get(4), "c");
+        tartuga = new Support(coordinates.get(5), "tartuga");
+
+        map = new TreasureMap(gamemode, treasure, jack, tartuga, new Enemy[] { kraken, davy, stone });
+
+        System.out.println("ASTAR");
         start = System.currentTimeMillis();
-        map2.backTracing();
+        map.backTracing();
         end = System.currentTimeMillis();
         res = end - start;
         System.out.println("Time:" + String.valueOf(res));
 
-        if (map2.getWinCost() != -1)
-            System.out.println("WIN\n" + map2.getWinCost() );
+        if (map.getWinCost() != -1)
+            System.out.println("WIN\n" + map.getWinCost() );
         else
             System.out.println("LOSE");
 
-        map2.printMap();
-
-        writeMapRes(map2, "outputBacktracking.txt");
-        writeMapRes(map,"outputAstar.txt");
+        map.printMap();
+        writeMapRes(map, "outputBacktracking.txt");
         
         // var count = 10;
         // var tests = generateTest(count);
@@ -232,6 +239,11 @@ public class MaksimOinoshev2 {
         return coordinatesList;
     }
 
+    /**
+     * Returns coordinates of effect area of Davy Jones around the given (y, x)
+     * @param y coordinate
+     * @param x coordinate
+     */
     public static ArrayList<int[]> daveArea(int y, int x) {
         var area = new ArrayList<int[]>();
         for(int i = -1; i < 2; i++) {
@@ -242,6 +254,11 @@ public class MaksimOinoshev2 {
         return area;
     }
 
+     /**
+     * Returns coordinates of effect area of kraken around the given (y, x)
+     * @param y coordinate
+     * @param x coordinate
+     */
     public static ArrayList<int[]> krakenArea(int y, int x) {
         var area = new ArrayList<int[]>();
         for(int i = -1; i < 2; i++) {
@@ -254,9 +271,13 @@ public class MaksimOinoshev2 {
         return area;
     }
 
-    public static boolean hasCollision(int[] coor, ArrayList<int[]> coords) {
-        for (int[] anotherCoor : coords) {
-            if (coor[0] == anotherCoor[0] && coor[1] == anotherCoor[1])
+    /**
+     * Checks if the given coodinate in the given other coodinates
+     * @param c
+     */
+    public static boolean hasCollision(int[] coordinate, ArrayList<int[]> coordinates) {
+        for (int[] anotherCoor : coordinates) {
+            if (coordinate[0] == anotherCoor[0] && coordinate[1] == anotherCoor[1])
                 return true;
         }
         return false;
@@ -407,7 +428,7 @@ class TreasureMap {
     }
 
 
-    private Cell getShortestBack(Cell from, Cell to, Entity goal) {
+    private Cell getShortestBack(Cell from, Cell to, Entity of) {
         var cellsQueue = new ArrayList<Cell>();
         var proceededCells = new ArrayList<Cell>();
         var cellsSeekedGoal = new ArrayList<Cell>();
@@ -416,7 +437,7 @@ class TreasureMap {
 
         while (!cellsQueue.isEmpty()) {
             var cell = cellsQueue.remove(0);
-            if (cellContains(cell, goal)) {
+            if (cellContains(cell, of)) { 
                 cellsSeekedGoal.add(cell);
             }
             var neighborCells = getNeighborCells(cell);
@@ -428,10 +449,11 @@ class TreasureMap {
         Cell w = null;
         int min = -1;
         for (Cell cell : cellsSeekedGoal) {
-            var val = pathLen(cell, from);
+            var val = pathLen(cell, from); 
             if (min == - 1 || val < min) {
-                w = cell;
-                min = val;
+                    w = cell;
+                    min = val;
+        
             }
         }
         return w;
@@ -569,6 +591,11 @@ class TreasureMap {
                     continue;
                 }
 
+                if (cell.belongsTo != null && cell.belongsTo.equals("kraken")) {
+                    System.out.print(Colors.RED + "#" + Colors.STOP);
+                    continue;
+                }
+
                 if (cell.isWinPath) {
                     System.out.print(Colors.GREEN + "*" + Colors.STOP);
                     continue;
@@ -640,19 +667,6 @@ class TreasureMap {
         return null;
     }
 
-
-    public ArrayList<int[]> getWinPath() {
-        // var res = new ArrayList<int[]>();
-        // for(int i = 0; i < height; i++) {
-        //     for(int j = 0; j < width; j++) {
-        //         if (body[j][i].isWinPath) {
-        //             res.add(new int[] {j, i});
-        //         }
-        //     }
-        // }
-        return win;
-    }
-
     /**
      * Returns cell that contains the given entity
      */
@@ -668,18 +682,6 @@ class TreasureMap {
                 }
             }
         }
-    }
-
-    private Enemy getEnemyIn(int y, int x) {
-        for (Enemy enemy : enemies) {
-            if (enemy.getX() == x && enemy.getY() == y)
-                return enemy;
-        }
-        return null;
-    }
-
-    private boolean inSupport(int y, int x) {
-        return support.getY() == y && support.getX() == x;
     }
 
     /**
@@ -718,14 +720,6 @@ class TreasureMap {
         int newTotalCost = newCost + estimatedCost;
 
         return new int[] { newCost, estimatedCost, newTotalCost };
-    }
-
-    private boolean isMortalEnemyFound(int y, int x) {
-        for (Enemy enemy : enemies) {
-            if (enemy.isImmortal())
-                return enemy.getX() == x && enemy.getY() == y;
-        }
-        return false;
     }
 
     /**
@@ -808,6 +802,11 @@ class TreasureMap {
             }
         }
     }
+
+    public ArrayList<int[]> getWinPath() {
+        return win;
+    }
+
 
     class Cell {
         private int id;
