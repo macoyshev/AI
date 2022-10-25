@@ -1,621 +1,583 @@
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.Random;
-import java.util.Scanner;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.security.auth.kerberos.KerberosCredMessage;
-import javax.swing.text.StyledEditorKit.BoldAction;
+import static java.lang.Math.*;
 
-/**
- * @author Maksim Oinoshev
- */
-public class MaksimOinoshev {
-    public static void main(String[] args) {
-        Random rand = new Random();
-        // coor
-        var scanner = new Scanner(System.in);
-        var coordinates = parseCoordinates(scanner.nextLine());
-        // var coordinates = new ArrayList<int[]>();
-        // for(int i = 0; i < 6; i++)
-        //     coordinates.add(new int[] {rand.nextInt(9), rand.nextInt(9)});
+record Coordinates(int y, int x) {}
 
-        // for (int[] is : coordinates) {
-        //     System.out.print("[" + is[0]+","+is[1]+"] ");
-        // }
-        // System.out.print("\n");
-        var gamemode = 1;
-        // scanner.close();
+class Cell {
+    double estimatedDistance = 0;
+    double totalCost = 0;
+    double cost = 0;
 
-        final char[][] krakenAreaEffect = {
-                { '-', '#', '-' },
-                { '#', '#', '#' },
-                { '-', '#', '-' },
-        };
+    boolean withKraken = false;
+    boolean withStone = false;
+    boolean withDavy = false;
+    boolean danger;
 
-        final char[][] davyAreaEffect = {
-                { '#', '#', '#' },
-                { '#', '#', '#' },
-                { '#', '#', '#' },
-        };
+    Cell parent = null;
 
-        var jack = new Player(coordinates.get(0), "jack");
-        var davy = new Enemy(coordinates.get(1), "davy", davyAreaEffect);
-        var kraken = new Enemy(coordinates.get(2), "kraken", krakenAreaEffect, false);
-        var stone = new Enemy(coordinates.get(3), "stone");
-        var treasure = new Goal(coordinates.get(4), "brilliant");
-        var tartuga = new Support(coordinates.get(5), "tartuga");
+    int x = 0;
+    int y = 0;
 
-        var map = new TreasureMap(gamemode, treasure, jack, tartuga, new Enemy[] { kraken, davy, stone });
-        map.printMap();
-        map.aStar();
-        map.printMap();
+    Cell() {}
+
+    Cell(int y, int x){
+        this.x = x;
+        this.y = y;
+    }
+   
+    Cell(Coordinates coordinates){
+        this.x = coordinates.x();
+        this.y = coordinates.y();
     }
 
-    /**
-     * Call InvalidInput if input does not equal to 1 or 2
-     * 
-     * @return game mode
-     */
-    public static int parseGameMode(String input) {
-        var mode = -1;
-        try {
-            mode = Integer.parseInt(input);
-            if (mode == 1 || mode == 2)
-                return mode;
-        } catch (Exception e) {
-            InvalidInput();
-        }
-
-        InvalidInput();
-        return 0;
+    public double getTotalCost(){
+        return totalCost;
     }
 
-    /**
-     * Translate the input string to the list of arrays format, where
-     * each array contain pair of (y, x) coordinates
-     */
-    public static ArrayList<int[]> parseCoordinates(String input) {
-        Pattern pattern = Pattern.compile("(\\[\\d,\\d\\]{1} ){5}\\[\\d,\\d\\]{1}$");
-        Matcher matcher = pattern.matcher(input);
-        if (!matcher.find())
-            InvalidInput();
-
-        // divide line to chunks
-        var strCoordinates = input.split(" ");
-        var coordinates = new ArrayList<int[]>();
-
-        for (String strCoordinate : strCoordinates) {
-            // remove square braces and get int array by comma
-            var coordinate = Arrays.stream(strCoordinate.replaceAll("[\\[\\]]", "")
-                    .split(",")).mapToInt(Integer::parseInt)
-                    .toArray();
-            coordinates.add(coordinate);
-        }
-        return coordinates;
+    public double getEstimatedCost(){
+        return estimatedDistance;
     }
 
-    /**
-     * Finish the program with invalid input message
-     */
-    public static void InvalidInput() {
-        System.out.println("Invalid input");
-        System.exit(0);
+    public boolean isEqual(Cell cell){
+        return cell.x == this.x && cell.y == this.y;
     }
+
 }
 
-class TreasureMap {
-    private final int emptyCellCost = 1;
-    private final int enemyCellCost = -1;
-    private final int width = 9;
-    private final int height = 9;
-    private final int gamemode;
-    private boolean enRec = false;
-    private int winCost = -1;
 
-    private final Goal goal;
-    private final Player player;
-    private final Support support;
-    private final Enemy[] enemies;
+public class MaksimOinoshev {
+    static int globalCounter = 0;
+    static boolean isKrakenALive = true;
+    static int width = 9;
+    static int height = 9;
+    static int gamemode;
+    static int [] adjacent1 = {1, 1, -1, -1, 1, -1,0, 0};
+    static int [] adjacent2 = {1, -1, 1, -1, 0, 0, 1, -1};
+    static Cell stoneCell;
+    static Cell davyCell;
+    static Cell jackCell;
+    static Cell tortugaCell;
+    static Cell chestCell;
+    static Cell krakenCell;
+    static int [][] ans = new int[10][10];
+    static ArrayList<Cell> cells;
 
-    private final Cell[][] body = new Cell[width][height];
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        Cell[][] map = new Cell[height][width];
+        Cell[][] map1 = new Cell[height][width];
+        Cell[][] map2 = new Cell[height][width];
 
-    public TreasureMap(int gamemode, Goal goal, Player player, Support support, Enemy[] enemies) {
-        this.goal = goal;
-        this.player = player;
-        this.support = support;
-        this.enemies = enemies;
-        this.gamemode = gamemode;
+        getInput();
 
-        placeEnemiesOnMap(enemies);
-        fillMapWithEmptyCells();
+        generateMap(cells, map);
+        generateMap(cells, map1);
+        generateMap(cells, map2);
+
+        printMap(map);
+        System.out.println();
+
+        writeShortestPath(aStarAlgorithm(map2), "outputAStar.txt");
+        writeShortestPath(backtrackingAlgorithm(map1), "outputBacktracking.txt");
     }
 
-    public void aStar() {
+    public static void getInput(){
+        Scanner scanner = new Scanner(System.in);
+        cells = getCoordinatesInput(scanner);
+        try {
+            gamemode = scanner.nextInt();
+        } catch (InputMismatchException e){
+            System.out.println("Invalid input");
+            System.exit(0);
+        }
+    }
 
-        Cell playerCell = getEntityCell(player);
-        Cell supportCell = getEntityCell(support);
-        Cell goalCell = getEntityCell(goal);
-        Cell cell = null;
+    public ArrayList<ArrayList<int[]>> generateTest(int count) {
+        var coordinatesList = new ArrayList<ArrayList<int[]>>();
+        for(int i = 0; i < count; i++) {
+            var jackCoordinates = generateCoordinates();
+            var davyCoordinates = generateCoordinates();
+            var krakenCoordinates = generateCoordinates();
+            var stoneCoordinates = generateCoordinates();
+            var treasureCoordinates = generateCoordinates();
+            var tortuga = generateCoordinates();
 
-        if (!inEffectArea(player.getY(), player.getX()))
-            cell = getShortest(playerCell, goalCell, goal);
+            while (Arrays.equals(davyCoordinates, stoneCoordinates) &&
+                   Arrays.equals(davyCoordinates, jackCoordinates) &&
+                   Arrays.equals(davyCoordinates, krakenCoordinates) &&
+                   Arrays.equals(davyCoordinates, treasureCoordinates) &&
+                   Arrays.equals(davyCoordinates, tortuga)
+            ) davyCoordinates = generateCoordinates();
 
-        if (cell != null) {
-            markWinPath(cell, player);
-            winCost = cell.cost - 1;
-        } else {
-            cell = getShortest(playerCell, supportCell, support);
-            if (cell != null) {
-                markWinPath(cell, player);
+            while (Arrays.equals(krakenCoordinates, jackCoordinates) &&
+                   Arrays.equals(krakenCoordinates, davyCoordinates) &&
+                   Arrays.equals(krakenCoordinates, treasureCoordinates) &&
+                   Arrays.equals(krakenCoordinates, tortuga)
+            ) krakenCoordinates = generateCoordinates();
+            
 
-                player.hasSupport = true;
-                cell = getShortest(supportCell, goalCell, goal);
-                if (cell != null) {
-                    markWinPath(cell, support);
-                    winCost = cell.cost - 1;
+            while (Arrays.equals(stoneCoordinates, jackCoordinates) &&
+                   Arrays.equals(stoneCoordinates, davyCoordinates) &&
+                   Arrays.equals(stoneCoordinates, treasureCoordinates) &&
+                   Arrays.equals(stoneCoordinates, tortuga)
+            ) krakenCoordinates = generateCoordinates();
+        }
+        
+        return coordinatesList;
+    }
+
+    public int[] generateCoordinates() {
+        var randomizer = new Random();
+        var x = randomizer.nextInt(9);
+        var y = randomizer.nextInt(9);
+
+        return new int[] {x, y};
+    }
+
+    public static ArrayList<Cell> getCoordinatesInput(Scanner scanner){
+        String input = scanner.nextLine();
+        Pattern pattern = Pattern.compile("(\\[[0-8],[0-8]\\]{1} ){5}\\[[0-8],[0-8]\\]{1}$");
+        Matcher matcher = pattern.matcher(input);
+        if (!matcher.find())
+        {
+            System.out.println("Invalid input");
+            System.exit(0);
+        }
+
+        var str_coordinates = input.split(" ");
+        ArrayList<Cell> cells = new ArrayList<>();
+
+        for (String str_coordinate : str_coordinates) {
+            var coordinate = Arrays.stream(str_coordinate.replaceAll("[\\[\\]]", "")
+                            .split(",")).mapToInt(Integer::parseInt)
+                    .toArray();
+            Cell cell = new Cell();
+            cell.y = coordinate[0];
+            cell.x = coordinate[1];
+            cells.add(cell);
+        }
+        return cells;
+    }
+
+    public static void generateMap(ArrayList<Cell> cells, Cell [][]map){
+        for (int i = 0;i < height;i++){
+            for (int j = 0;j < width;j++){
+                map[i][j] = new Cell(i,j);
+            }
+        }
+        // Davy
+        createDavyDangerZone(map, cells.get(1).y, cells.get(1).x);
+
+        // Kraken
+        createKrakenDangerZone(map, cells.get(2).y, cells.get(2).x);
+        // Rock
+        createRockDangerZone(map, cells.get(3).y, cells.get(3).x);
+
+        map[cells.get(1).y][cells.get(1).x].withDavy = true;
+        map[cells.get(2).y][cells.get(2).x].withKraken = true;
+        map[cells.get(3).y][cells.get(3).x].withStone = true;
+
+        jackCell = new Cell(new Coordinates(cells.get(0).y, cells.get(0).x));
+        davyCell = new Cell(new Coordinates(cells.get(1).y, cells.get(1).x));
+        krakenCell = new Cell(new Coordinates(cells.get(2).y, cells.get(2).x));
+        stoneCell = new Cell(new Coordinates(cells.get(3).y, cells.get(3).x));
+        chestCell = new Cell(new Coordinates(cells.get(4).y, cells.get(4).x));
+        tortugaCell = new Cell(new Coordinates(cells.get(5).y, cells.get(5).x));
+    }
+
+    public static void printMap(Cell [][]map){
+        for (int i = 0;i < height;i++){
+            for (int j = 0;j < width;j++){
+                if (map[i][j].danger) System.out.print("D ");
+                else
+                    if (i == jackCell.y && j == jackCell.x) System.out.print("J ");
+                    else
+                        if (i == chestCell.y && j == chestCell.x) System.out.print("C ");
+                        else
+                            if (i == tortugaCell.y && j == tortugaCell.x) System.out.print("T ");
+                            else
+                                System.out.print("- ");
+            }
+            System.out.println();
+        }
+    }
+
+    public static boolean checkBorders(Coordinates point){
+        boolean check1 = point.x() >= 0 && point.x() < 9;
+        boolean check2 = point.y() >= 0 && point.y() < 9;
+        return check1 && check2;
+    }
+
+    public static boolean checkBorders(int y, int x){
+        boolean check1 = x >= 0 && x < 9;
+        boolean check2 = y >= 0 && y < 9;
+        return check1 && check2;
+    }
+
+    public static boolean checkMoving(Cell[][] map, int jackY, int jackX){
+        return (jackX >= 0 && jackY >= 0 && jackX < width && jackY < height &&
+                (!map[jackY][jackX].danger));
+    }
+
+    public static boolean checkInput(String input){
+
+        return true;
+    }
+
+    public static int backTracking(Cell [][] map, Cell start, Cell goal, boolean weapon, boolean[][] visited,
+                                   Coordinates[][] rec){
+        globalCounter++;
+        //if (globalCounter > 2000000) return 100000;
+        if (!checkMoving(map, start.y, start.x)) return 100000;
+        //if (start.x == tortugaCoords.x && start.y == tortugaCoords.y) weapon = true;
+        if (weapon) killKraken(map, start, krakenCell);
+        if (visited[start.y][start.x]) return ans[start.y][start.x];
+        if (start.x == goal.x && start.y == goal.y) {
+            ans[start.y][start.x] = 0;
+            rec[start.y][start.x] = new Coordinates(20, 20);
+            return 0;
+        }
+        visited[start.y][start.x] = true;
+        ans[start.y][start.x] = 100000;
+        rec[start.y][start.x] = new Coordinates(-1, -1);
+        ArrayList<Cell> cells1 = new ArrayList<>();
+        for (int i = 0;i < 8;i++){
+            if (checkMoving(map, start.y + adjacent2[i], start.x + adjacent1[i])){
+
+                Cell newCell = new Cell(start.y + adjacent2[i], start.x + adjacent1[i]);
+                newCell.estimatedDistance = getDistance(newCell, goal);
+                cells1.add(newCell);
+                cells1.sort(Comparator.comparing(Cell::getEstimatedCost));
+                int curLength = backTracking(map, cells1.remove(0), goal, weapon, visited, rec);
+                if (ans[start.y][start.x] > curLength +1){
+                    ans[start.y][start.x] = curLength + 1;
+                    rec[start.y][start.x] = new Coordinates(start.y + adjacent2[i], start.x + adjacent1[i]);
                 }
             }
         }
+        return ans[start.y][start.x];
     }
 
-    private Cell getShortest(Cell from, Cell to, Entity goal) {
-        var cheapestCellFirst = new ArrayList<Cell>();
-        var proceededCells = new ArrayList<Cell>();
+    public static ArrayList<Cell> aStarAlgorithm(Cell [][]map){
+        ArrayList<Cell> path1 = new ArrayList<>();
+        ArrayList<Cell> path2 = new ArrayList<>();
+        ArrayList<Cell> path3 = new ArrayList<>();
 
-        cheapestCellFirst.add(from);
-
-        while (!cheapestCellFirst.isEmpty()) {
-            var cell = cheapestCellFirst.remove(0);
-
-            if (cellContains(cell, goal)) {
-                return cell;
+        path1 = aStar(path1, map, chestCell, jackCell, false);
+        path3 = aStar(path3, map, tortugaCell, jackCell, false);
+        path2 = aStar(path2, map, chestCell, tortugaCell, true);
+        if (pathLength(path1) < pathLength(path2) + pathLength(path3)){
+            return path1;
+        }
+        else
+        {
+            ArrayList<Cell> answer = new ArrayList<>(path2);
+            if (path3!=null)
+            for (int i = 1;i < path3.size();i++){
+                answer.add(path3.get(i));
             }
+            return answer;
+        }
+    }
 
-            var neighborCells = getNeighborCells(cell);
-            if (neighborCells.isEmpty()) {
-                continue;
-            }
-            
-            deduplicate(neighborCells, cheapestCellFirst, proceededCells);
-            recalculateTotalCost(cell, neighborCells);
-
-            proceededCells.add(cell);
-            cheapestCellFirst.addAll(neighborCells);
-            cheapestCellFirst.sort(Comparator.comparing(Cell::getTotalConst));
+    public static ArrayList<Cell> backtrackingAlgorithm(Cell[][] map){
+        var map1 = map.clone();
+        var map2 = map.clone();
+        boolean [][]visited1 = new boolean[10][10];
+        boolean [][]visited2 = new boolean[10][10];
+        boolean [][]visited3 = new boolean[10][10];
+        Coordinates[][] rec1 = new Coordinates[10][10];
+        Coordinates[][] rec2 = new Coordinates[10][10];
+        Coordinates[][] rec3 = new Coordinates[10][10];
+        int length1 = backTracking(map1, jackCell, chestCell, false, visited1, rec1);
+        globalCounter = 0;
+        int length2 = backTracking(map2, jackCell, tortugaCell, false, visited2, rec2);
+        globalCounter = 0;
+        int length3 = backTracking(map2, tortugaCell, chestCell, true, visited3, rec3);
+        globalCounter = 0;
+        if (length1 == 100000 && ((length2 == 100000) || (length3 == 100000))){
+            return null;
+        }
+        else
+        if (length1 < length2 + length3){
+            ArrayList<Cell> ans = new ArrayList<>();
+            ans.addAll(findPath(rec1));
+            ans.add(chestCell);
+            return ans;
+        }
+        else {
+            ArrayList<Cell> path3 = findPath(rec2);
+            ArrayList<Cell> path2 = findPath(rec3);
+            ArrayList<Cell> ans = new ArrayList<>(path2);
+            if (path3!=null)
+                for (int i = 0;i < path3.size();i++){
+                    ans.add(path3.get(i));
+                }
+            return ans;
         }
 
+    }
+
+    public static ArrayList<Cell> aStar(ArrayList<Cell> path, Cell[][]map, Cell goal, Cell currentPosition,
+                                        boolean weapon)     {
+        ArrayList<Cell> openCells = new ArrayList<>();
+        ArrayList<Cell> closedCells = new ArrayList<>();
+
+        boolean betterCell;
+        double cost;
+        currentPosition.cost = 0;
+        currentPosition.estimatedDistance = getDistance(currentPosition, goal);
+        currentPosition.totalCost = currentPosition.cost + currentPosition.estimatedDistance;
+
+        openCells.add(currentPosition);
+        while (!openCells.isEmpty()){
+            openCells.sort(Comparator.comparing(Cell::getTotalCost).thenComparing(Cell::getEstimatedCost));
+            Cell currentCell = openCells.remove(0);
+            if (currentCell.isEqual(tortugaCell)) weapon = true;
+            if (weapon) killKraken(map, currentCell, krakenCell);
+            if (currentCell.x == goal.x && currentCell.y == goal.y) return createPath(path, currentPosition, currentCell);
+            closedCells.add(currentCell);
+
+            for (Cell neighbor:getNeighborCells(currentCell, map)){
+                if (closedCells.contains(neighbor)) continue;
+
+                cost = currentCell.cost + getDistance(currentCell, neighbor);
+                if (!openCells.contains(neighbor)){
+                    openCells.add(neighbor);
+                    betterCell = true;
+                }
+                else
+                    if (cost < neighbor.cost){
+                        betterCell = true;
+                    }
+                    else
+                        betterCell = false;
+                    if (betterCell){
+                        neighbor.cost = cost;
+                        neighbor.estimatedDistance = getDistance(neighbor, chestCell);
+                        neighbor.totalCost = neighbor.cost + neighbor.estimatedDistance;
+                        neighbor.parent = currentCell;
+                    }
+            }
+        }
         return null;
     }
 
-    /**
-     * Removes proceeded element from the neighborCells and cheapestCells lists
-     * 
-     * @param neighborCells - array list of neighbors
-     * @param proceededCells - array list of proceded cells from cheapestCells
-     */
-    private void deduplicate(ArrayList<Cell> neighborCells, ArrayList<Cell> cheapestCells, ArrayList<Cell> procededCells) {
-        var cheapestCellsToRemove = new ArrayList<Cell>();
-        var neighborCellsToRemove = new ArrayList<Cell>();
-
-        for (Cell neighbor : neighborCells) {
-            // remove collision of cheapest and neighbor cells
-            for (Cell cheap : cheapestCells)
-                if (cheap.id == neighbor.id)
-                    if (cheap.totalCost < calculateCost(neighbor)[2])
-                        neighborCellsToRemove.add(neighbor);
-                    else
-                        cheapestCellsToRemove.add(cheap);
-
-            // remove collision of proceded and neighbor cells
-            for (Cell proceded : procededCells)
-                if (proceded.id == neighbor.id && proceded.totalCost < calculateCost(neighbor)[2])
-                    neighborCellsToRemove.add(neighbor);
-        }
-
-        for (Cell cellToRemove : neighborCellsToRemove)
-            neighborCells.remove(cellToRemove);
-
-        for (Cell cellToRemove : cheapestCellsToRemove) 
-            cheapestCells.remove(cellToRemove);
+    public static double getDistance(Cell fst, Cell snd){
+        double costX = Math.abs(snd.x - fst.x);
+        double costY = Math.abs(snd.y - fst.y);
+        return Math.max(costY, costX);
     }
 
-    /**
-     * Sets isWiningPath to true for the shortest path
-     */
-    private void markWinPath(Cell goalCell, Entity init) {
-        var cell = goalCell;
-        var initCell = getEntityCell(init);
-        while (cell.id != initCell.id) {
-            body[cell.y][cell.x].isWinPath = true;
-            cell = cell.parent;
-        }
-    }
-
-  
-
-    /**
-     * Display map to stdout
-     */
-    public void printMap() {
-        var entities = new ArrayList<Entity>(Arrays.asList(player, goal, support));
-        entities.addAll(Arrays.asList(enemies));
-
-        System.out.println(" 012345678");
-        for (int i = 0; i < height; i++) {
-            System.out.print(i);
-
-            for (int j = 0; j < width; j++) {
-                var cell = body[i][j];
-
-                var isEntity = false;
-                for (Entity entity : entities) {
-                    if (cell == getEntityCell(entity)) {
-                        System.out.print(entity.getName().charAt(0));
-                        isEntity = true;
-                        break;
-                    }
-                }
-                if (isEntity)
-                    continue;
-
-                if (cell.cost == enemyCellCost) {
-                    System.out.print(Colors.RED + "#" + Colors.STOP);
-                    continue;
-                }
-
-                if (cell.isWinPath) {
-                    System.out.print(Colors.GREEN + "*" + Colors.STOP);
-                    continue;
-                }
-                System.out.print("-");
-            }
-            System.out.print("\n");
-        }
-    }
-
-
-    /**
-     * Returns neighbors of the cell. A neighbor is cell which can be accepted
-     * from the given cell by one move
-     * 
-     * @param cell
-     * @return neighbors of the cell
-     */
-    private ArrayList<Cell> getNeighborCells(Cell cell) {
-        int x = cell.x;
-        int y = cell.y;
-
-        var neighbors = new ArrayList<Cell>();
-
-        for (int i = -1; i < 2; i++) {
-            for (int j = -1; j < 2; j++) {
-                if (i == 0 && j == 0) continue;
-
-                int yMap = y + i;
-                int xMap = x + j;
-
-                if (!inMap(yMap, xMap))
-                    continue;
-                
-                if (getMortalEnemyIn(yMap, xMap) != null && player.hasSupport && !enRec) {
-                    enRec = true;
-                    removeEnemyCells(getMortalEnemyIn(yMap, xMap));
-                    return getNeighborCells(cell);
-                }
-
-                if (!inEffectArea(yMap, xMap)) {
-                    var neighbor = body[yMap][xMap].copy();
-                    neighbor.parent = cell;
-                    neighbors.add(neighbor);
-                }
+    public static ArrayList<Cell> getNeighborCells(Cell currentCell, Cell[][] map){
+        ArrayList<Cell> neighbors = new ArrayList<>();
+        Cell neighbor;
+        for (int i = 0;i < 8;i++){
+            if (checkMoving(map, currentCell.y + adjacent2[i], currentCell.x + adjacent1[i])){
+                neighbor = map[currentCell.y + adjacent2[i]][currentCell.x + adjacent1[i]];
+                neighbor.cost = currentCell.cost + 1;
+                neighbor.estimatedDistance = getDistance(neighbor, chestCell);
+                neighbors.add(neighbor);
             }
         }
         return neighbors;
     }
 
-    private Enemy getMortalEnemyIn(int y, int x) {
-        for (Enemy enemy : enemies) {
-            if (!enemy.isImmortal() && enemy.getX() == x && enemy.getY() == y)
-                return enemy;
+    public static ArrayList<Cell> createPath(ArrayList<Cell> path, Cell start, Cell finish){
+        Cell current = finish;
+        while (current != null){
+            path.add(current);
+
+            current = current.parent;
         }
+        return path;
+    }
+
+    public static int pathLength(ArrayList<Cell> path){
+        if (path!=null)
+        return path.size() - 1;
+        return 100000;
+    }
+
+    public static ArrayList<Cell> findPath(Coordinates [][]rec) {
+        int x = jackCell.x;
+        int y = jackCell.y;
+        ArrayList<Cell> path = new ArrayList<>();
+        while (rec[y][x].x() != 20) {
+            if (rec[y][x].x() != -1){
+                int xx = x;
+                x = rec[y][x].x();
+                y = rec[y][xx].y();
+
+                path.add(new Cell(y,x));
+            }
+
+        }
+        return path;
+    }
+
+    public static void writeShortestPath(ArrayList<Cell> path, String fileName){
+        var result = new StringBuilder();
+
+        if (path == null){
+            // add game status
+            result.append("Lose\n");
+        } else {
+            Collections.reverse(path);
+            path.add(jackCell);
+            
+            // add game status
+            result.append("Win\n");
+            result.append(path.size()).append("\n");
+
+            // add wininig path
+            for (Cell cell : path) {
+                result.append(String.format("[%d,%d]",cell.y ,cell.x));
+                result.append(" ");
+            }
+            result.append("\n\n");
+
+            for(int i = -1; i < height; i++) {
+                for(int j = -1; j < width; j++) {
+                    if (i == -1 && j == -1) result.append(" ");
+                    else if (i == -1 && j != -1) result.append(j);
+                    else if (i != -1 && j == -1) result.append(i);
+                    else if (cellWith(i, j, path) != null) result.append("*");
+                    else result.append("-");
+                    result.append(" ");
+                }
+                result.append("\n");
+            }
+        }
+
+        try {
+            FileWriter writer = new FileWriter(fileName);
+            writer.write(result.toString());
+            writer.close();
+        }
+        catch (IOException e){
+            e.printStackTrace();
+        }
+    }
+
+    public static Cell cellWith(int y, int x, ArrayList<Cell>from) {
+        for (Cell cell : from)
+            if (cell.x == x && cell.y == y) return cell;
         return null;
     }
 
-    /**
-     * Returns cell that contains the given entity
-     */
-    private Cell getEntityCell(Entity entity) {
-        return body[entity.getY()][entity.getX()];
+    public static void printPath(ArrayList<Cell> path){
+        String [][] map = new String[9][9];
+        for (int i = 0;i < 9;i++){
+            for (int j = 0;j < 9;j++){
+                map[i][j] = "_";
+            }
+        }
+        map[jackCell.y][jackCell.x] = "*";
+        if (path!=null)
+            for (int i = 0;i < path.size();i++){
+                map[path.get(i).y][path.get(i).x] = "*";
+            }
+        for (int i = 0;i < 19;i++) System.out.print("-");
+        System.out.println();
+        System.out.print("  ");
+        for (int i = 0;i < 9;i++) System.out.print(i+" ");
+        System.out.println();
+        for (int i = 0;i < 9;i++){
+            System.out.print(i+" ");
+            for (int j = 0;j < 9;j++){
+                System.out.print(map[i][j]+" ");
+            }
+            System.out.println();
+        }
+        for (int i = 0;i < 19;i++) System.out.print("-");
+        System.out.println();
     }
 
-    private void removeEnemyCells(Enemy enemy) {
-        for (int i = 0; i < height; i++) {
-            for (int j = 0; j < width; j++) {
-                if (body[i][j].belongsTo != null && body[i][j].belongsTo.equals(enemy.getName())) {
-                    body[i][j].cost = emptyCellCost;
-                }
+    public static void killKraken(Cell[][] map, Cell currentPosition, Cell krakenPosition){
+        for (int i = 0;i < 4;i++){
+            if (currentPosition.y == krakenPosition.y + adjacent2[i] &&
+                    currentPosition.x == krakenPosition.x + adjacent1[i]){
+                isKrakenALive = false;
+            }
+        }
+        if (!isKrakenALive){
+            for (int i = -1;i < 2;i++){
+                if (checkBorders(krakenPosition.y+i, krakenPosition.x))
+                    map[krakenPosition.y+i][krakenPosition.x].danger = false;
+            }
+            if (checkBorders(krakenPosition.y, krakenPosition.x-1))
+                map[krakenPosition.y][krakenPosition.x-1].danger = false;
+            if (checkBorders(krakenPosition.y, krakenPosition.x+1))
+                map[krakenPosition.y][krakenPosition.x+1].danger = false;
+            createDavyDangerZone(map, davyCell);
+            createRockDangerZone(map,stoneCell);
+        }
+    }
+
+    public static void createDavyDangerZone(Cell [][] map, int davyY, int davyX){
+        for (int i =davyY-1;i <= davyY + 1;i++){
+            for (int j = davyX-1;j <= davyX+1;j++){
+                if (checkBorders(i,j))
+                    map[i][j].danger = true;
             }
         }
     }
 
-    private Enemy getEnemyIn(int y, int x) {
-        for (Enemy enemy : enemies) {
-            if (enemy.getX() == x && enemy.getY() == y)
-                return enemy;
-        }
-        return null;
-    }
-
-    private boolean inSupport(int y, int x) {
-        return support.getY() == y && support.getX() == x;
-    }
-
-    /**
-     * Assign new costs for the neighbor if go from the cell to the neighbor
-     * 
-     * @param cell      - cell to go from
-     * @param neighbors - list of neighbors of the cell
-     */
-    private void recalculateTotalCost(Cell cell, ArrayList<Cell> neighbors) {
-        for (Cell neighbor : neighbors) {
-            int[] costs = calculateCost(neighbor);
-            int newCost = costs[0];
-            int estimatedCost = costs[1];
-            int newtotalCost = costs[2];
-
-            neighbor.cost = newCost;
-            neighbor.estimatedCost = estimatedCost;
-            neighbor.totalCost = newtotalCost;
-        }
-    }
-
-    /**
-     * Calculates new costs for the cell
-     * 
-     * @return the array of new self cost, manhatan cost and total cost
-     */
-    private int[] calculateCost(Cell cell) {
-        int cathetus_x = Math.abs(goal.getX() - cell.x);
-        int cathetus_y = Math.abs(goal.getY() - cell.y);
-        int estimatedCost = Math.max(cathetus_x, cathetus_y);
-
-        int newCost = cell.cost;
-        if (cell.parent != null)
-            newCost += cell.parent.cost;
-
-        int newTotalCost = newCost + estimatedCost;
-
-        return new int[] { newCost, estimatedCost, newTotalCost };
-    }
-
-    private boolean isMortalEnemyFound(int y, int x) {
-        for (Enemy enemy : enemies) {
-            if (enemy.isImmortal())
-                return enemy.getX() == x && enemy.getY() == y;
-        }
-        return false;
-    }
-
-    /**
-     * Check if (x, y) in the map
-     */
-    private boolean inMap(int y, int x) {
-        return x < width && x >= 0 && y < width && y >= 0;
-    }
-
-    /**
-     * Check if (x, y) in the enemy effect area
-     */
-    private boolean inEffectArea(int y, int x) {
-        return body[y][x].cost == -1;
-    }
-
-    private boolean inEffectAreaOf(Enemy enemy, int y, int x) {
-        
-        return body[y][x].cost == -1;
-    }
-
-    /**
-     * Check if the given cell contains the given entity
-     */
-    private boolean cellContains(Cell cell, Entity entity) {
-        return cell.x == entity.getX() && cell.y == entity.getY();
-    }
-
-    /**
-     * Sets enemyCellCost for enemies and it's effect area cells
-     */
-    private void placeEnemiesOnMap(Enemy[] enemies) {
-        for (Enemy enemy : enemies) {
-            int x = enemy.getX();
-            int y = enemy.getY();
-            body[y][x] = new Cell(enemyCellCost, y, x, enemy.getName());
-            placeEffectAreaOnMap(enemy);
-        }
-    }
-
-    /**
-     * Sets enemyCellCost for enemies effect area cells
-     */
-    private void placeEffectAreaOnMap(Enemy enemy) {
-        var area = enemy.getEffectArea();
-        if (area == null)
-            return;
-
-        int area_height = area.length;
-        int area_width = area[0].length;
-
-        // relative position of the enemy in the area
-        var enemy_pos_y_in_area = area_height / 2;
-        var enemy_pos_x_in_area = area_width / 2;
-
-        for (int i = 0; i < area_height; i++) {
-            for (int j = 0; j < area_width; j++) {
-                if (area[i][j] == '#') {
-                    int dis_x = j - enemy_pos_x_in_area;
-                    int dis_y = i - enemy_pos_y_in_area;
-
-                    int effect_pos_x = enemy.getX() + dis_x;
-                    int effect_pos_y = enemy.getY() + dis_y;
-
-                    if (inMap(effect_pos_y, effect_pos_x))
-                        body[effect_pos_y][effect_pos_x] = new Cell(enemyCellCost, i, j, enemy.getName());
-                }
+    public static void createDavyDangerZone(Cell [][] map, Cell davyCell){
+        int davyY = davyCell.y;
+        int davyX = davyCell.x;
+        for (int i =davyY-1;i <= davyY + 1;i++){
+            for (int j = davyX-1;j <= davyX+1;j++){
+                if (checkBorders(i,j))
+                    map[i][j].danger = true;
             }
         }
     }
 
-    /**
-     * Put cells with emptyCellCost in the map body
-     */
-    private void fillMapWithEmptyCells() {
-        for (int i = 0; i < height; i++) {
-            for (int j = 0; j < width; j++) {
-                if (body[i][j] == null)
-                    body[i][j] = new Cell(emptyCellCost, i, j);
-            }
+    public static void createKrakenDangerZone(Cell [][]map, int krakenY, int krakenX){
+        for (int i = krakenY-1; i <= krakenY+1;i++){
+            if (checkBorders(i, krakenX)) map[i][krakenX].danger = true;
+        }
+        if (checkBorders(krakenY, krakenX-1))
+        {
+            map[krakenY][krakenX-1].danger = true;
+        }
+        if (checkBorders(krakenY, krakenX+1))
+        {
+            map[krakenY][krakenX+1].danger = true;
         }
     }
 
-    class Cell {
-        private int id;
-        private int x;
-        private int y;
-
-        private boolean isSupportPoint = false;
-        private boolean isWinPath = false;
-        private String belongsTo = null;
-
-        private int cost;
-        private int estimatedCost = -1;
-        private int totalCost = -1;
-
-        private Cell parent = null;
-
-        public Cell(int cost, int y, int x) {
-            this.cost = cost;
-            this.x = x;
-            this.y = y;
-            this.id = (x + 1) + (y) * 9;
+    public static void createKrakenDangerZone(Cell [][]map, Cell kraken){
+        int krakenY = kraken.y;
+        int krakenX = kraken.x;
+        for (int i = krakenY-1; i <= krakenY+1;i++){
+            if (checkBorders(i, krakenX)) map[i][krakenX].danger = true;
         }
-
-        public Cell(int cost, int y, int x, String belongsTo) {
-            this.cost = cost;
-            this.x = x;
-            this.y = y;
-            this.belongsTo = belongsTo;
-            this.id = (x + 1) + (y) * 9;
+        if (checkBorders(krakenY, krakenX-1))
+        {
+            map[krakenY][krakenX-1].danger = true;
         }
-
-        public Cell(int id, int x, int y, boolean isSupportPoint,
-                boolean isWinPath, int cost, int estimatedCost,
-                int totalCost, Cell parent) {
-            this.id = id;
-            this.x = x;
-            this.y = y;
-            this.isSupportPoint = isSupportPoint;
-            this.isWinPath = isWinPath;
-            this.cost = cost;
-            this.estimatedCost = estimatedCost;
-            this.totalCost = totalCost;
-            this.parent = parent;
+        if (checkBorders(krakenY, krakenX+1))
+        {
+            map[krakenY][krakenX+1].danger = true;
         }
-
-        public int getTotalConst() {
-            return totalCost;
-        }
-
-        private Cell copy() {
-            return new Cell(id, x, y, isSupportPoint, isWinPath, cost, estimatedCost, totalCost, parent);
-        }
-
-        @Override
-        public String toString() {
-            return "id:" + id + "," + "y:" + y + "," + "x:" + x;
-        }
-
-    }
-}
-
-class Player extends Entity {
-    public boolean hasSupport = false;
-    public ArrayList<Enemy> knownEnemies = new ArrayList<>();
-
-    public Player(int[] coordinates, String name) {
-        super(coordinates, name);
-    }
-    
-}
-
-class Enemy extends Entity {
-    private char[][] effectArea = null;
-    private boolean isImmortal = true;
-
-    public Enemy(int[] coordinates, String name) {
-        super(coordinates, name);
     }
 
-    public Enemy(int[] coordinates, String name, char[][] effectArea) {
-        super(coordinates, name);
-        this.effectArea = effectArea;
+    public static void createRockDangerZone(Cell[][] map, int y, int x){
+        map[y][x].danger = true;
     }
 
-    public Enemy(int[] coordinates, String name, char[][] effectArea, boolean isImmortal) {
-        super(coordinates, name);
-        this.effectArea = effectArea;
-        this.isImmortal = isImmortal;
+    public static void createRockDangerZone(Cell[][] map, Cell rockCell){
+        int y = rockCell.y;
+        int x = rockCell.x;
+        map[y][x].danger = true;
     }
 
-    public char[][] getEffectArea() {
-        return effectArea;
-    }
-
-    public boolean isImmortal() {
-        return isImmortal;
-    }
-}
-
-class Support extends Entity {
-    public Support(int[] coordinates, String name) {
-        super(coordinates, name);
-    }
-}
-
-class Goal extends Entity {
-    public Goal(int[] coordinates, String name) {
-        super(coordinates, name);
-    }
-}
-
-class Entity {
-    private int x;
-    private int y;
-    private String name;
-
-    public Entity(int[] coordinates, String name) {
-        this.y = coordinates[0];
-        this.x = coordinates[1];
-        this.name = name;
-    }
-
-    public void move(int y, int x) {
-        this.x = x;
-        this.y = y;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public int getX() {
-        return x;
-    }
-
-    public int getY() {
-        return y;
-    }
 }
