@@ -30,25 +30,29 @@ public class MaksimOinoshev {
     };
 
     public static void main(String[] args) {
+        staticalAnalysis(1000); // metrics of algorithms
         ArrayList<int[]> coordinates;
         var scanner = new Scanner(System.in);
+
+        // Read coordinates
         coordinates = parseCoordinates(scanner.nextLine());
         if (!isValid(coordinates))
             InvalidInput();
 
+        // Read gamemode
         var gamemode = parseGameMode(scanner.nextLine());
         scanner.close();
 
+        // init
         var jack = new Player(coordinates.get(0), "jack");
         var davy = new Enemy(coordinates.get(1), "davy", davyAreaEffect);
         var kraken = new Enemy(coordinates.get(2), "kraken", krakenAreaEffect, false);
         var stone = new Enemy(coordinates.get(3), "stone");
         var treasure = new Goal(coordinates.get(4), "c");
         var tartuga = new Support(coordinates.get(5), "tartuga");
-
         var map = new TreasureMap(gamemode, treasure, jack, tartuga, new Enemy[] { kraken, davy, stone });
 
-        // AStar
+        // A*
         System.out.println("ASTAR");
         map.aStar();
 
@@ -60,7 +64,7 @@ public class MaksimOinoshev {
         map.printMap();
         writeMapRes(map, "outputAstar.txt");
 
-        // Clear values
+        // reinit entities and map for backtracking
         jack = new Player(coordinates.get(0), "jack");
         davy = new Enemy(coordinates.get(1), "davy", davyAreaEffect);
         kraken = new Enemy(coordinates.get(2), "kraken", krakenAreaEffect, false);
@@ -70,7 +74,7 @@ public class MaksimOinoshev {
 
         map = new TreasureMap(gamemode, treasure, jack, tartuga, new Enemy[] { kraken, davy, stone });
 
-        // Backtracking
+        // backtracking
         System.out.println("Backtracking");
         map.backTracing();
 
@@ -84,10 +88,21 @@ public class MaksimOinoshev {
 
     }
 
+    /**
+     * Print metrics of different algorithms with different game modes.
+     * Metrics: wins
+     * 
+     * @param count
+     */
     public static void staticalAnalysis(int count) {
         int gamemode;
         var tests = generateTest(count);
         for (int opt = 0; opt < 4; opt++) {
+            // opt = 0 A* variant 1
+            // opt = 1 A* variant 2
+            // opt = 2 Backtracking variant 1
+            // opt = 3 Backtracking variant 2
+
             var wins = new ArrayList<Integer>();
             var times = new ArrayList<Long>();
             int winCount = 0;
@@ -109,14 +124,11 @@ public class MaksimOinoshev {
 
                 var map = new TreasureMap(gamemode, treasure, jack, tartuga, new Enemy[] { kraken, davy, stone });
 
-                // one time exection time
                 long start = System.currentTimeMillis();
-
                 if (opt < 2)
                     map.aStar();
                 else
                     map.backTracing();
-
                 long end = System.currentTimeMillis();
                 long time = end - start;
                 times.add(time);
@@ -137,6 +149,7 @@ public class MaksimOinoshev {
             Collections.sort(wins);
             int meadian = wins.get(wins.size() / 2);
 
+            // map of most repeated numbers
             Map<Integer, Integer> counter = new HashMap<>();
             for (int win : wins) {
                 if (counter.get(win) == null)
@@ -155,13 +168,13 @@ public class MaksimOinoshev {
 
             double timesMean = timesSum / (double) count;
 
-            long diationMul = 0;
+            long deviationMul = 0;
             for (Long time : times) {
-                diationMul += Math.pow(time - timesMean, 2);
+                deviationMul += Math.pow(time - timesMean, 2);
             }
-            double deviation = Math.sqrt(diationMul / (double) (count - 1));
-            int winPer = (int) ((double) count / (double) winCount * 100);
-            int losePer = (int) ((double) count / (double) loseCount * 100);
+            double deviation = Math.sqrt(deviationMul / (double) (count - 1));
+            int winPer = (int) ((double) winCount / (double) count * 100);
+            int losePer = (int) ((double) loseCount / (double) count * 100);
 
             if (opt == 0)
                 System.out.println("A* variant 1");
@@ -181,8 +194,8 @@ public class MaksimOinoshev {
             System.out.println("standart deviation: " + deviation);
             System.out.println("wins count: " + winCount);
             System.out.println("loses count: " + loseCount);
-            System.out.println("wins percent: " + winPer);
-            System.out.println("loses percent: " + losePer);
+            System.out.println("wins percent: " + winPer + "%");
+            System.out.println("loses percent: " + losePer + "%");
             System.out.println("\n\n");
         }
     }
@@ -516,6 +529,14 @@ class TreasureMap {
         }
     }
 
+    /**
+     * Helper for backTracking method.This function contains main logic of
+     * finding the most optimal path among all existing paths
+     * 
+     * @param from cell where start from
+     * @param to   cell where to go
+     * @param of   entity that is placed in to cell
+     */
     private Cell getShortestBackTracking(Cell from, Cell to, Entity of) {
         var cellsQueue = new ArrayList<Cell>();
         var proceededCells = new ArrayList<Cell>();
@@ -584,11 +605,8 @@ class TreasureMap {
     }
 
     /**
-     * Removes proceeded element from the neighborCells and cheapestCells lists
-     * 
-     * @param neighborCells - array list of neighbors
-     *                      // * @param proceededCells - array list of proceded
-     *                      cells from cheapestCells
+     * Removes proceeded element from the neighborCells and cheapestCells lists.
+     * Also removes from neighborCells which are already in cheapestCells
      */
     private void deduplicate(ArrayList<Cell> neighborCells, ArrayList<Cell> cheapestCells,
             ArrayList<Cell> procededCells) {
@@ -617,6 +635,12 @@ class TreasureMap {
             cheapestCells.remove(cellToRemove);
     }
 
+    /**
+     * Removes already proceeded cells, used for optimization
+     * 
+     * @param neighborCells cells which to clear
+     * @param procededCells which delete
+     */
     private void removeProceeded(ArrayList<Cell> neighborCells, ArrayList<Cell> procededCells) {
         var neighborCellsToRemove = new ArrayList<Cell>();
 
@@ -632,7 +656,10 @@ class TreasureMap {
     }
 
     /**
-     * Sets isWiningPath to true for the shortest path
+     * Sets isWiningPath to true for the shortest path, and stores win path
+     *
+     * @param goalCell where from to start
+     * @param init     until which cell
      */
     private void markWinPath(Cell goalCell, Entity init) {
         var cell = goalCell;
@@ -647,7 +674,7 @@ class TreasureMap {
     }
 
     /**
-     * Display map to stdout
+     * Display map to console
      */
     public void printMap() {
         var entities = new ArrayList<Entity>(Arrays.asList(player, goal, support));
@@ -769,6 +796,12 @@ class TreasureMap {
         return height;
     }
 
+    /**
+     * Returns mortal enemy if exists in given coordinates
+     * 
+     * @param y
+     * @param x
+     */
     private Enemy getMortalEnemyIn(int y, int x) {
         for (Enemy enemy : enemies) {
             if (!enemy.isImmortal() && enemy.getX() == x && enemy.getY() == y)
@@ -784,6 +817,9 @@ class TreasureMap {
         return body[entity.getY()][entity.getX()];
     }
 
+    /**
+     * Remove effect area of enemy
+     */
     private void removeEnemyCells(Enemy enemy) {
         for (int i = 0; i < height; i++) {
             for (int j = 0; j < width; j++) {
@@ -843,11 +879,6 @@ class TreasureMap {
      * Check if (x, y) in the enemy effect area
      */
     private boolean inEffectArea(int y, int x) {
-        return body[y][x].cost == -1;
-    }
-
-    private boolean inEffectAreaOf(Enemy enemy, int y, int x) {
-
         return body[y][x].cost == -1;
     }
 
@@ -923,7 +954,6 @@ class TreasureMap {
         private int x;
         private int y;
 
-        private boolean isSupportPoint = false;
         private boolean isWinPath = false;
         private String belongsTo = null;
 
@@ -948,13 +978,12 @@ class TreasureMap {
             this.id = (x + 1) + (y) * 9;
         }
 
-        public Cell(int id, int x, int y, boolean isSupportPoint,
+        public Cell(int id, int x, int y,
                 boolean isWinPath, int cost, int estimatedCost,
                 int totalCost, Cell parent) {
             this.id = id;
             this.x = x;
             this.y = y;
-            this.isSupportPoint = isSupportPoint;
             this.isWinPath = isWinPath;
             this.cost = cost;
             this.estimatedCost = estimatedCost;
@@ -967,42 +996,13 @@ class TreasureMap {
         }
 
         private Cell copy() {
-            return new Cell(id, x, y, isSupportPoint, isWinPath, cost, estimatedCost, totalCost, parent);
+            return new Cell(id, x, y, isWinPath, cost, estimatedCost, totalCost, parent);
         }
 
         @Override
         public String toString() {
             return "id:" + id + "," + "y:" + y + "," + "x:" + x;
         }
-
-        public int getId() {
-            return id;
-        }
-
-        public int getX() {
-            return x;
-        }
-
-        public int getY() {
-            return y;
-        }
-
-        public boolean isSupportPoint() {
-            return isSupportPoint;
-        }
-
-        public boolean isWinPath() {
-            return isWinPath;
-        }
-
-        public String getBelongsTo() {
-            return belongsTo;
-        }
-
-        public int getCost() {
-            return cost;
-        }
-
     }
 }
 
