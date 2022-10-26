@@ -17,27 +17,27 @@ import java.util.regex.Pattern;
  * @author Maksim Oinoshev
  */
 public class MaksimOinoshev {
+    static final char[][] krakenAreaEffect = {
+            { '-', '#', '-' },
+            { '#', '#', '#' },
+            { '-', '#', '-' },
+    };
+
+    static final char[][] davyAreaEffect = {
+            { '#', '#', '#' },
+            { '#', '#', '#' },
+            { '#', '#', '#' },
+    };
+
     public static void main(String[] args) {
         ArrayList<int[]> coordinates;
         var scanner = new Scanner(System.in);
         coordinates = parseCoordinates(scanner.nextLine());
         if (!isValid(coordinates))
             InvalidInput();
-    
+
         var gamemode = parseGameMode(scanner.nextLine());
         scanner.close();
-        
-        final char[][] krakenAreaEffect = {
-                { '-', '#', '-' },
-                { '#', '#', '#' },
-                { '-', '#', '-' },
-        };
-
-        final char[][] davyAreaEffect = {
-                { '#', '#', '#' },
-                { '#', '#', '#' },
-                { '#', '#', '#' },
-        };
 
         var jack = new Player(coordinates.get(0), "jack");
         var davy = new Enemy(coordinates.get(1), "davy", davyAreaEffect);
@@ -47,19 +47,19 @@ public class MaksimOinoshev {
         var tartuga = new Support(coordinates.get(5), "tartuga");
 
         var map = new TreasureMap(gamemode, treasure, jack, tartuga, new Enemy[] { kraken, davy, stone });
-        
+
         // AStar
         System.out.println("ASTAR");
         map.aStar();
 
         if (map.getWinCost() != -1)
-            System.out.println("WIN:" + map.getWinCost() );
+            System.out.println("WIN:" + map.getWinCost());
         else
             System.out.println("LOSE");
 
         map.printMap();
-        writeMapRes(map,"outputAstar.txt");
-        
+        writeMapRes(map, "outputAstar.txt");
+
         // Clear values
         jack = new Player(coordinates.get(0), "jack");
         davy = new Enemy(coordinates.get(1), "davy", davyAreaEffect);
@@ -75,55 +75,63 @@ public class MaksimOinoshev {
         map.backTracing();
 
         if (map.getWinCost() != -1)
-            System.out.println("WIN:" + map.getWinCost() );
+            System.out.println("WIN:" + map.getWinCost());
         else
             System.out.println("LOSE");
 
         map.printMap();
         writeMapRes(map, "outputBacktracking.txt");
 
-        var count = 1000;
+    }
+
+    public static void staticalAnalysis(int count) {
+        int gamemode;
         var tests = generateTest(count);
-        for(int opt = 0; opt < 4; opt++) {
+        for (int opt = 0; opt < 4; opt++) {
             var wins = new ArrayList<Integer>();
-            var times = new ArrayList<Long>();      
+            var times = new ArrayList<Long>();
             int winCount = 0;
             int loseCount = 0;
 
-            for(int i = 0; i < count; i++) {
-                coordinates = tests.get(i);
-                jack = new Player(coordinates.get(0), "jack");
-                davy = new Enemy(coordinates.get(1), "davy", davyAreaEffect);
-                kraken = new Enemy(coordinates.get(2), "kraken", krakenAreaEffect, false);
-                stone = new Enemy(coordinates.get(3), "stone");
-                treasure = new Goal(coordinates.get(4), "chest");
-                tartuga = new Support(coordinates.get(5), "tartuga");
-                
-                if (opt % 2 == 0) gamemode = 1;
-                else gamemode = 2;
+            for (int i = 0; i < count; i++) {
+                var coordinates = tests.get(i);
+                var jack = new Player(coordinates.get(0), "jack");
+                var davy = new Enemy(coordinates.get(1), "davy", davyAreaEffect);
+                var kraken = new Enemy(coordinates.get(2), "kraken", krakenAreaEffect, false);
+                var stone = new Enemy(coordinates.get(3), "stone");
+                var treasure = new Goal(coordinates.get(4), "chest");
+                var tartuga = new Support(coordinates.get(5), "tartuga");
 
-                map = new TreasureMap(gamemode, treasure, jack, tartuga, new Enemy[] { kraken, davy, stone });
-                
+                if (opt % 2 == 0)
+                    gamemode = 1;
+                else
+                    gamemode = 2;
+
+                var map = new TreasureMap(gamemode, treasure, jack, tartuga, new Enemy[] { kraken, davy, stone });
+
                 // one time exection time
                 long start = System.currentTimeMillis();
 
-                if (opt < 2) map.aStar();
-                else map.backTracing();
+                if (opt < 2)
+                    map.aStar();
+                else
+                    map.backTracing();
 
                 long end = System.currentTimeMillis();
                 long time = end - start;
                 times.add(time);
-    
+
                 if (map.getWinCost() != -1) {
                     winCount += 1;
                     wins.add(map.getWinCost());
-                } else loseCount += 1;
+                } else
+                    loseCount += 1;
             }
-            
+
             long winsSum = wins.stream()
-                .mapToLong(Integer::longValue)
-                .sum();
-            
+                    .mapToLong(Integer::longValue)
+                    .sum();
+
             double mean = winsSum / (double) winCount;
 
             Collections.sort(wins);
@@ -131,35 +139,36 @@ public class MaksimOinoshev {
 
             Map<Integer, Integer> counter = new HashMap<>();
             for (int win : wins) {
-                if (counter.get(win) == null) 
+                if (counter.get(win) == null)
                     counter.put(win, 1);
-                else 
+                else
                     counter.put(win, counter.get(win) + 1);
             }
-            Optional<Entry<Integer, Integer>> maxEntry = counter.entrySet().stream().max(Comparator.comparing(Map.Entry::getValue));
+            Optional<Entry<Integer, Integer>> maxEntry = counter.entrySet().stream()
+                    .max(Comparator.comparing(Map.Entry::getValue));
             int mode = maxEntry.get().getKey();
-            
+
             long timesSum = 0;
             for (Long time : times) {
                 timesSum += time;
             }
 
-            double timesMean = timesSum / (double)count;
+            double timesMean = timesSum / (double) count;
 
             long diationMul = 0;
             for (Long time : times) {
                 diationMul += Math.pow(time - timesMean, 2);
             }
-            double deviation = Math.sqrt(diationMul / (double)(count - 1));
-            int winPer = (int)((double)count / (double)winCount * 100);
-            int losePer = (int)((double)count / (double)loseCount * 100);
+            double deviation = Math.sqrt(diationMul / (double) (count - 1));
+            int winPer = (int) ((double) count / (double) winCount * 100);
+            int losePer = (int) ((double) count / (double) loseCount * 100);
 
             if (opt == 0)
                 System.out.println("A* variant 1");
 
             if (opt == 1)
                 System.out.println("A* variant 2");
-            
+
             if (opt == 2)
                 System.out.println("Backtracking variant 1");
 
@@ -176,7 +185,6 @@ public class MaksimOinoshev {
             System.out.println("loses percent: " + losePer);
             System.out.println("\n\n");
         }
-        
     }
 
     /**
@@ -191,7 +199,7 @@ public class MaksimOinoshev {
                 writer.close();
                 return;
             }
-            
+
             writer.write("Win\n");
             var res = map.getWinPath();
             Collections.reverse(res);
@@ -199,31 +207,36 @@ public class MaksimOinoshev {
                 writer.append(String.format("[%d,%d] ", coor[0], coor[1]));
             }
             writer.append("\n");
-        
-            for(int i = -1; i < map.getHeight(); i++) {
-                for(int j = -1; j < map.getWidth(); j++) {
-                    if (i == -1 && j == -1) writer.append(" ");
-                    else if (i == -1 && j != -1) writer.append(String.valueOf(j));  
-                    else if (i != -1 && j == -1) writer.append(String.valueOf(i));
-                    else if (in(i, j, res)) writer.append("*");
-                    else writer.append("-");
+
+            for (int i = -1; i < map.getHeight(); i++) {
+                for (int j = -1; j < map.getWidth(); j++) {
+                    if (i == -1 && j == -1)
+                        writer.append(" ");
+                    else if (i == -1 && j != -1)
+                        writer.append(String.valueOf(j));
+                    else if (i != -1 && j == -1)
+                        writer.append(String.valueOf(i));
+                    else if (in(i, j, res))
+                        writer.append("*");
+                    else
+                        writer.append("-");
                     writer.append(" ");
                 }
                 writer.append("\n");
             }
             writer.close();
-        }
-        catch (IOException e){
+        } catch (IOException e) {
             e.printStackTrace();
         }
-    } 
+    }
 
     /**
      * Checks if the given (y, x) cooresponds to any given coordinates
      */
     public static boolean in(int y, int x, ArrayList<int[]> coordinates) {
         for (int[] cor : coordinates)
-            if (cor[1] == x && cor[0] == y) return true;
+            if (cor[1] == x && cor[0] == y)
+                return true;
         return false;
     }
 
@@ -235,33 +248,36 @@ public class MaksimOinoshev {
         var davyCoordinates = coords.get(1);
         var krakenCoordinates = coords.get(2);
         var stoneCoordinates = coords.get(3);
-        var treasureCoordinates =coords.get(4);
+        var treasureCoordinates = coords.get(4);
         var tortuga = coords.get(5);
 
-        var forbiddenCoords = new ArrayList<>(Arrays.asList(stoneCoordinates, jackCoordinates, krakenCoordinates, treasureCoordinates, tortuga));
+        var forbiddenCoords = new ArrayList<>(
+                Arrays.asList(stoneCoordinates, jackCoordinates, krakenCoordinates, treasureCoordinates, tortuga));
         if (hasCollision(davyCoordinates, forbiddenCoords))
             return false;
 
-        forbiddenCoords = new ArrayList<>(Arrays.asList(jackCoordinates, davyCoordinates, treasureCoordinates, tortuga));
+        forbiddenCoords = new ArrayList<>(
+                Arrays.asList(jackCoordinates, davyCoordinates, treasureCoordinates, tortuga));
         if (hasCollision(krakenCoordinates, forbiddenCoords))
             return false;
 
-        forbiddenCoords = new ArrayList<>(Arrays.asList(davyCoordinates, jackCoordinates, treasureCoordinates, tortuga));
+        forbiddenCoords = new ArrayList<>(
+                Arrays.asList(davyCoordinates, jackCoordinates, treasureCoordinates, tortuga));
         if (hasCollision(stoneCoordinates, forbiddenCoords))
             return false;
 
         forbiddenCoords = new ArrayList<>(Arrays.asList(jackCoordinates));
         forbiddenCoords.addAll(krakenArea(krakenCoordinates[0], krakenCoordinates[1]));
-        forbiddenCoords.addAll(krakenArea(krakenCoordinates[0], krakenCoordinates[1]));
+        forbiddenCoords.addAll(krakenArea(davyCoordinates[0], davyCoordinates[1]));
         if (hasCollision(treasureCoordinates, forbiddenCoords))
             return false;
-                
+
         forbiddenCoords = new ArrayList<>(Arrays.asList(treasureCoordinates));
         forbiddenCoords.addAll(krakenArea(krakenCoordinates[0], krakenCoordinates[1]));
-        forbiddenCoords.addAll(krakenArea(krakenCoordinates[0], krakenCoordinates[1]));
+        forbiddenCoords.addAll(krakenArea(davyCoordinates[0], davyCoordinates[1]));
         if (hasCollision(tortuga, forbiddenCoords))
-            return false;   
-    
+            return false;
+
         return true;
     }
 
@@ -270,7 +286,7 @@ public class MaksimOinoshev {
      */
     public static ArrayList<ArrayList<int[]>> generateTest(int count) {
         var coordinatesList = new ArrayList<ArrayList<int[]>>();
-        for(int i = 0; i < count; i++) {
+        for (int i = 0; i < count; i++) {
             var jackCoordinates = generateCoordinates();
             var davyCoordinates = generateCoordinates();
             var krakenCoordinates = generateCoordinates();
@@ -279,13 +295,12 @@ public class MaksimOinoshev {
             var tortuga = generateCoordinates();
 
             var temp = new ArrayList<>(Arrays.asList(
-                davyCoordinates,
-                stoneCoordinates, 
-                jackCoordinates, 
-                krakenCoordinates, 
-                treasureCoordinates, 
-                tortuga
-            ));
+                    davyCoordinates,
+                    stoneCoordinates,
+                    jackCoordinates,
+                    krakenCoordinates,
+                    treasureCoordinates,
+                    tortuga));
             while (!isValid(temp)) {
                 jackCoordinates = generateCoordinates();
                 davyCoordinates = generateCoordinates();
@@ -295,47 +310,49 @@ public class MaksimOinoshev {
                 tortuga = generateCoordinates();
 
                 temp = new ArrayList<>(Arrays.asList(
-                    davyCoordinates,
-                    stoneCoordinates, 
-                    jackCoordinates, 
-                    krakenCoordinates, 
-                    treasureCoordinates, 
-                    tortuga
-                ));
+                        davyCoordinates,
+                        stoneCoordinates,
+                        jackCoordinates,
+                        krakenCoordinates,
+                        treasureCoordinates,
+                        tortuga));
             }
             coordinatesList.add(temp);
-            }
+        }
 
         return coordinatesList;
     }
 
     /**
      * Returns coordinates of effect area of Davy Jones around the given (y, x)
+     * 
      * @param y coordinate
      * @param x coordinate
      */
     public static ArrayList<int[]> daveArea(int y, int x) {
         var area = new ArrayList<int[]>();
-        for(int i = -1; i < 2; i++) {
-            for(int j = -1; i < 2; i++) {
-                area.add(new int[] {y + i, x + j});
+        for (int i = -1; i < 2; i++) {
+            for (int j = -1; i < 2; i++) {
+                area.add(new int[] { y + i, x + j });
             }
         }
         return area;
     }
 
-     /**
+    /**
      * Returns coordinates of effect area of kraken around the given (y, x)
+     * 
      * @param y coordinate
      * @param x coordinate
      */
     public static ArrayList<int[]> krakenArea(int y, int x) {
         var area = new ArrayList<int[]>();
-        for(int i = -1; i < 2; i++) {
-            for(int j = -1; j < 2; j++) {
-                if (Math.abs(i) == 1 && Math.abs(i) == 1) continue;
-        
-                area.add(new int[] {y + i, x + j});
+        for (int i = -1; i < 2; i++) {
+            for (int j = -1; j < 2; j++) {
+                if (Math.abs(i) == 1 && Math.abs(i) == 1)
+                    continue;
+
+                area.add(new int[] { y + i, x + j });
             }
         }
         return area;
@@ -343,6 +360,7 @@ public class MaksimOinoshev {
 
     /**
      * Checks if the given coodinate in the given other coodinates
+     * 
      * @param c
      */
     public static boolean hasCollision(int[] coordinate, ArrayList<int[]> coordinates) {
@@ -358,7 +376,7 @@ public class MaksimOinoshev {
         var x = randomizer.nextInt(9);
         var y = randomizer.nextInt(9);
 
-        return new int[] {x, y};
+        return new int[] { x, y };
     }
 
     /**
@@ -385,7 +403,7 @@ public class MaksimOinoshev {
      * each array contain pair of (y, x) coordinates
      */
     public static ArrayList<int[]> parseCoordinates(String input) {
-        Pattern pattern = Pattern.compile("(\\[\\d,\\d\\]{1} ){5}\\[\\d,\\d\\]{1}$");
+        Pattern pattern = Pattern.compile("(\\[[0-8],[0-8]\\]{1} ){5}\\[[0-8],[0-8]\\]{1}$");
         Matcher matcher = pattern.matcher(input);
         if (!matcher.find())
             InvalidInput();
@@ -450,7 +468,7 @@ class TreasureMap {
 
         if (inEffectArea(player.getY(), player.getX()))
             return;
-        
+
         cell = getShortestBackTracking(playerCell, goalCell, goal);
 
         if (cell != null) {
@@ -476,8 +494,9 @@ class TreasureMap {
         Cell goalCell = getEntityCell(goal);
         Cell cell = null;
 
-        if (inEffectArea(player.getY(), player.getX()))return;
-        
+        if (inEffectArea(player.getY(), player.getX()))
+            return;
+
         cell = getShortestaStar(playerCell, goalCell, goal);
 
         if (cell != null) {
@@ -497,7 +516,6 @@ class TreasureMap {
         }
     }
 
-
     private Cell getShortestBackTracking(Cell from, Cell to, Entity of) {
         var cellsQueue = new ArrayList<Cell>();
         var proceededCells = new ArrayList<Cell>();
@@ -505,9 +523,10 @@ class TreasureMap {
         cellsQueue.add(from);
         while (!cellsQueue.isEmpty()) {
             var cell = cellsQueue.remove(0);
-            if (cellContains(cell, of)) cellsSeekedGoal.add(cell); 
+            if (cellContains(cell, of))
+                cellsSeekedGoal.add(cell);
             var neighborCells = getNeighborCells(cell);
-            removeProceeded(neighborCells, proceededCells);    
+            removeProceeded(neighborCells, proceededCells);
             recalculateTotalCost(cell, neighborCells);
             proceededCells.add(cell);
             cellsQueue.addAll(neighborCells);
@@ -516,14 +535,14 @@ class TreasureMap {
         Cell winCell = null;
         int minVal = -1;
         for (Cell cell : cellsSeekedGoal) {
-            var val = pathLen(cell, from); 
-            if (minVal == - 1 || val < minVal) {
-                    winCell = cell;
-                    minVal = val;
+            var val = pathLen(cell, from);
+            if (minVal == -1 || val < minVal) {
+                winCell = cell;
+                minVal = val;
             }
         }
         return winCell;
-    } 
+    }
 
     private int pathLen(Cell goalCell, Cell initCell) {
         var cell = goalCell.copy();
@@ -568,9 +587,11 @@ class TreasureMap {
      * Removes proceeded element from the neighborCells and cheapestCells lists
      * 
      * @param neighborCells - array list of neighbors
-//     * @param proceededCells - array list of proceded cells from cheapestCells
+     *                      // * @param proceededCells - array list of proceded
+     *                      cells from cheapestCells
      */
-    private void deduplicate(ArrayList<Cell> neighborCells, ArrayList<Cell> cheapestCells, ArrayList<Cell> procededCells) {
+    private void deduplicate(ArrayList<Cell> neighborCells, ArrayList<Cell> cheapestCells,
+            ArrayList<Cell> procededCells) {
         var cheapestCellsToRemove = new ArrayList<Cell>();
         var neighborCellsToRemove = new ArrayList<Cell>();
 
@@ -592,7 +613,7 @@ class TreasureMap {
         for (Cell cellToRemove : neighborCellsToRemove)
             neighborCells.remove(cellToRemove);
 
-        for (Cell cellToRemove : cheapestCellsToRemove) 
+        for (Cell cellToRemove : cheapestCellsToRemove)
             cheapestCells.remove(cellToRemove);
     }
 
@@ -610,7 +631,6 @@ class TreasureMap {
             neighborCells.remove(cellToRemove);
     }
 
-
     /**
      * Sets isWiningPath to true for the shortest path
      */
@@ -620,10 +640,10 @@ class TreasureMap {
         body[initCell.y][initCell.x].isWinPath = true;
         while (cell.id != initCell.id) {
             body[cell.y][cell.x].isWinPath = true;
-            win.add(new int[] {cell.y, cell.x});
+            win.add(new int[] { cell.y, cell.x });
             cell = cell.parent;
         }
-        win.add(new int[] {initCell.y, initCell.x});
+        win.add(new int[] { initCell.y, initCell.x });
     }
 
     /**
@@ -671,7 +691,6 @@ class TreasureMap {
         }
     }
 
-
     /**
      * Returns neighbors of the cell. A neighbor is cell which can be accepted
      * from the given cell by one move
@@ -687,14 +706,15 @@ class TreasureMap {
 
         for (int i = -1; i < 2; i++) {
             for (int j = -1; j < 2; j++) {
-                if (i == 0 && j == 0) continue;
+                if (i == 0 && j == 0)
+                    continue;
 
                 int yMap = y + i;
                 int xMap = x + j;
 
                 if (!inMap(yMap, xMap))
                     continue;
-                
+
                 if (getMortalEnemyIn(yMap, xMap) != null && player.hasSupport && !envRecalced) {
                     envRecalced = true;
                     removeEnemyCells(getMortalEnemyIn(yMap, xMap));
@@ -704,7 +724,8 @@ class TreasureMap {
 
                 if (notCheck.size() != 0) {
                     for (Cell not : notCheck) {
-                        if (body[yMap][xMap].id == not.id) continue;
+                        if (body[yMap][xMap].id == not.id)
+                            continue;
                     }
                 }
 
@@ -714,7 +735,6 @@ class TreasureMap {
                     neighbors.add(neighbor);
                 }
 
-
                 if (gamemode == 2) {
                     int y1 = y + 2;
                     int y2 = y - 2;
@@ -722,14 +742,14 @@ class TreasureMap {
                     int x2 = x - 2;
                     if (inMap(y1, x) && inEffectArea(y1, x))
                         notCheck.add(body[y1][x]);
-                    
-                    if (inMap(y2, x) && inEffectArea(y2, x))  
+
+                    if (inMap(y2, x) && inEffectArea(y2, x))
                         notCheck.add(body[y2][x]);
-                    
-                    if (inMap(y, x1) && inEffectArea(y, x1))  
+
+                    if (inMap(y, x1) && inEffectArea(y, x1))
                         notCheck.add(body[y][x1]);
-                    
-                    if (inMap(y, x2) && inEffectArea(y, x2))  
+
+                    if (inMap(y, x2) && inEffectArea(y, x2))
                         notCheck.add(body[y][x2]);
                 }
             }
@@ -827,7 +847,7 @@ class TreasureMap {
     }
 
     private boolean inEffectAreaOf(Enemy enemy, int y, int x) {
-        
+
         return body[y][x].cost == -1;
     }
 
@@ -875,7 +895,8 @@ class TreasureMap {
                     int effect_pos_y = enemy.getY() + dis_y;
 
                     if (inMap(effect_pos_y, effect_pos_x))
-                        body[effect_pos_y][effect_pos_x] = new Cell(enemyCellCost, effect_pos_y, effect_pos_x, enemy.getName());
+                        body[effect_pos_y][effect_pos_x] = new Cell(enemyCellCost, effect_pos_y, effect_pos_x,
+                                enemy.getName());
                 }
             }
         }
@@ -896,7 +917,6 @@ class TreasureMap {
     public ArrayList<int[]> getWinPath() {
         return win;
     }
-
 
     class Cell {
         private int id;
@@ -982,7 +1002,7 @@ class TreasureMap {
         public int getCost() {
             return cost;
         }
-        
+
     }
 }
 
@@ -993,7 +1013,7 @@ class Player extends Entity {
     public Player(int[] coordinates, String name) {
         super(coordinates, name);
     }
-    
+
 }
 
 class Enemy extends Entity {
@@ -1065,7 +1085,6 @@ class Entity {
     }
 }
 
-
 enum Colors {
     STOP("\033[0m"),
     RED("\033[0;31m"),
@@ -1083,4 +1102,3 @@ enum Colors {
         return code;
     }
 }
-
