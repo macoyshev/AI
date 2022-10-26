@@ -4,8 +4,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Scanner;
+import java.util.Map.Entry;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -77,32 +81,102 @@ public class MaksimOinoshev {
 
         map.printMap();
         writeMapRes(map, "outputBacktracking.txt");
-        
-        int winCount = 0;
-        int loseCount = 0;
+
         var count = 1000;
         var tests = generateTest(count);
-        var wins = new ArrayList<Integer>();
-        long start = System.currentTimeMillis();
-        for(int i = 0; i < count; i++) {
-            coordinates = tests.get(i);
-            jack = new Player(coordinates.get(0), "jack");
-            davy = new Enemy(coordinates.get(1), "davy", davyAreaEffect);
-            kraken = new Enemy(coordinates.get(2), "kraken", krakenAreaEffect, false);
-            stone = new Enemy(coordinates.get(3), "stone");
-            treasure = new Goal(coordinates.get(4), "chest");
-            tartuga = new Support(coordinates.get(5), "tartuga");
+        for(int opt = 0; opt < 4; opt++) {
+            var wins = new ArrayList<Integer>();
+            var times = new ArrayList<Long>();      
+            int winCount = 0;
+            int loseCount = 0;
 
-            map = new TreasureMap(gamemode, treasure, jack, tartuga, new Enemy[] { kraken, davy, stone });
-            
-            map.aStar();
-        
-            if (map.getWinCost() != -1) {
-                winCount += 1;
-                wins.add(map.getWinCost());
-            } else loseCount += 1;
+            for(int i = 0; i < count; i++) {
+                coordinates = tests.get(i);
+                jack = new Player(coordinates.get(0), "jack");
+                davy = new Enemy(coordinates.get(1), "davy", davyAreaEffect);
+                kraken = new Enemy(coordinates.get(2), "kraken", krakenAreaEffect, false);
+                stone = new Enemy(coordinates.get(3), "stone");
+                treasure = new Goal(coordinates.get(4), "chest");
+                tartuga = new Support(coordinates.get(5), "tartuga");
+                
+                if (opt % 2 == 0) gamemode = 1;
+                else gamemode = 2;
+
+                map = new TreasureMap(gamemode, treasure, jack, tartuga, new Enemy[] { kraken, davy, stone });
+                
+                // one time exection time
+                long start = System.currentTimeMillis();
+
+                if (opt < 2) map.aStar();
+                else map.backTracing();
+
+                long end = System.currentTimeMillis();
+                long time = end - start;
+                times.add(time);
     
+                if (map.getWinCost() != -1) {
+                    winCount += 1;
+                    wins.add(map.getWinCost());
+                } else loseCount += 1;
+            }
+            
+            long winsSum = wins.stream()
+                .mapToLong(Integer::longValue)
+                .sum();
+            
+            double mean = winsSum / (double) winCount;
+
+            Collections.sort(wins);
+            int meadian = wins.get(wins.size() / 2);
+
+            Map<Integer, Integer> counter = new HashMap<>();
+            for (int win : wins) {
+                if (counter.get(win) == null) 
+                    counter.put(win, 1);
+                else 
+                    counter.put(win, counter.get(win) + 1);
+            }
+            Optional<Entry<Integer, Integer>> maxEntry = counter.entrySet().stream().max(Comparator.comparing(Map.Entry::getValue));
+            int mode = maxEntry.get().getKey();
+            
+            long timesSum = 0;
+            for (Long time : times) {
+                timesSum += time;
+            }
+
+            double timesMean = timesSum / (double)count;
+
+            long diationMul = 0;
+            for (Long time : times) {
+                diationMul += Math.pow(time - timesMean, 2);
+            }
+            double deviation = Math.sqrt(diationMul / (double)(count - 1));
+            int winPer = (int)((double)count / (double)winCount * 100);
+            int losePer = (int)((double)count / (double)loseCount * 100);
+
+            if (opt == 0)
+                System.out.println("A* variant 1");
+
+            if (opt == 1)
+                System.out.println("A* variant 2");
+            
+            if (opt == 2)
+                System.out.println("Backtracking variant 1");
+
+            if (opt == 3)
+                System.out.println("Backtracking variant 2");
+
+            System.out.println("mean: " + mean);
+            System.out.println("median: " + meadian);
+            System.out.println("mode: " + mode);
+            System.out.println("standart deviation: " + deviation);
+            System.out.println("wins count: " + winCount);
+            System.out.println("loses count: " + loseCount);
+            System.out.println("wins percent: " + winPer);
+            System.out.println("loses percent: " + losePer);
+            System.out.println("\n\n");
         }
+        
     }
 
     /**
@@ -347,6 +421,7 @@ class TreasureMap {
     private final int gamemode;
     private boolean envRecalced = false;
     private ArrayList<int[]> win = new ArrayList<>();
+    private ArrayList<Cell> notCheck = new ArrayList<>();
     private int winCost = -1;
 
     private final Goal goal;
@@ -627,41 +702,35 @@ class TreasureMap {
                     break;
                 }
 
+                if (notCheck.size() != 0) {
+                    for (Cell not : notCheck) {
+                        if (body[yMap][xMap].id == not.id) continue;
+                    }
+                }
+
                 if (!inEffectArea(yMap, xMap)) {
                     var neighbor = body[yMap][xMap].copy();
                     neighbor.parent = cell;
                     neighbors.add(neighbor);
                 }
 
+
                 if (gamemode == 2) {
                     int y1 = y + 2;
                     int y2 = y - 2;
                     int x1 = x + 2;
                     int x2 = x - 2;
-                
-                    if (inMap(y1, x) && !inEffectArea(y + 1, x)) {
-                        var neighbor = body[y1][x].copy();
-                        neighbor.parent = body[y + 1][x].copy();
-                        neighbors.add(neighbor);
-                    }
-
-                    if (inMap(y2, x) && !inEffectArea(y - 1, x)) {
-                        var neighbor = body[y2][x].copy();
-                        neighbor.parent = body[y - 1][x].copy();
-                        neighbors.add(neighbor);
-                    }
-
-                    if (inMap(y, x1) && !inEffectArea(y, x + 1)) {
-                        var neighbor = body[y][x1].copy();
-                        neighbor.parent = body[y][x + 1].copy();
-                        neighbors.add(neighbor);
-                    }
-
-                    if (inMap(y, x2) && !inEffectArea(y, x - 1)) {
-                        var neighbor = body[y][x2].copy();
-                        neighbor.parent = body[y][x - 1].copy();
-                        neighbors.add(neighbor);
-                    }
+                    if (inMap(y1, x) && inEffectArea(y1, x))
+                        notCheck.add(body[y1][x]);
+                    
+                    if (inMap(y2, x) && inEffectArea(y2, x))  
+                        notCheck.add(body[y2][x]);
+                    
+                    if (inMap(y, x1) && inEffectArea(y, x1))  
+                        notCheck.add(body[y][x1]);
+                    
+                    if (inMap(y, x2) && inEffectArea(y, x2))  
+                        notCheck.add(body[y][x2]);
                 }
             }
         }
